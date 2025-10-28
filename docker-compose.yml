@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: llm_dev_password
       POSTGRES_DB: llm_hub
     ports:
-      - "5433:5432"  # External port 5433 to avoid conflicts with other postgres instances
+      - "5434:5432"  # External port 5434 to avoid conflicts with other postgres instances
     volumes:
       - llmhub_db_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro

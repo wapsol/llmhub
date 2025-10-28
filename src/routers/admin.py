@@ -15,7 +15,6 @@ import secrets
 from src.config.database import get_db
 from src.config.settings import settings
 from src.models.database import APIClient, PromptTemplate, LLMGenerationLog
-from src.models.schemas import APIClientCreate, APIClientResponse
 from src.utils.logger import logger
 
 router = APIRouter()
