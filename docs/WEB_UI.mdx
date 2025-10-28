@@ -1,0 +1,402 @@
+# LLMHub Web UI Guide
+
+Complete guide for using the LLMHub management web interface.
+
+## Accessing the Web UI
+
+Open your browser and navigate to:
+
+```
+http://localhost:4000
+```
+
+(Replace `localhost:4000` with your deployment URL in production)
+
+**No authentication required** - This is an internal management tool designed for trusted network environments.
+
+---
+
+## Dashboard
+
+The **Dashboard** provides an overview of your LLMHub installation.
+
+### Key Metrics
+
+- **Total API Clients** - Number of registered applications
+- **Prompt Templates** - Available reusable prompts
+- **Total LLM Calls** - API calls in last 30 days
+- **Total Cost (USD)** - Spending in last 30 days
+
+### Provider Status
+
+Shows which LLM providers are configured:
+
+- ✅ **Configured** - API key is set, provider is ready
+- ⚠️ **Not Configured** - API key missing, add to `.env` file
+
+### Quick Actions
+
+Click any quick action card to navigate to that section:
+
+- **Create API Client** - Add a new application
+- **View Providers** - Check provider status and models
+- **View Billing** - Analyze usage and costs
+
+---
+
+## Providers & Models
+
+Manage LLM providers and enable/disable specific models.
+
+### Provider Status
+
+Each provider shows:
+
+- **Name** - Anthropic Claude, OpenAI, or Groq
+- **Description** - Provider capabilities
+- **Configuration Status** - Whether API key is set
+- **Available Models** - All models supported by this provider
+
+### Model Management
+
+Each model card displays:
+
+- **Model Name** - e.g., "Claude 3.5 Sonnet"
+- **Description** - Model capabilities and use cases
+- **Cost per 1K tokens** - Input and output pricing
+- **Context Window** - Maximum context size (e.g., "200K")
+- **Toggle Switch** - Enable/disable model for use
+
+**Note:** Model enable/disable is UI-only in current version. All configured providers are available via API.
+
+### Provider Details
+
+#### Anthropic Claude
+
+- **Best for:** Complex reasoning, long documents, analysis
+- **Context:** 200K tokens (largest)
+- **Models:**
+  - Claude 3.5 Sonnet - Balanced performance (recommended)
+  - Claude 3 Opus - Most capable, expensive
+  - Claude 3 Haiku - Fast, economical
+
+#### OpenAI
+
+- **Best for:** General tasks, image generation
+- **Context:** 8K-128K depending on model
+- **Models:**
+  - GPT-4 Turbo - Latest, most efficient
+  - GPT-4 - Stable, proven
+  - GPT-3.5 Turbo - Fast, cheap
+
+#### Groq
+
+- **Best for:** Ultra-fast inference, high throughput
+- **Context:** 4K-32K depending on model
+- **Cost:** Much cheaper than Claude/OpenAI
+- **Models:**
+  - Mixtral 8x7B - High quality open-source
+  - LLaMA 2 70B - Large open-source
+
+---
+
+## API Clients
+
+Manage applications that use LLMHub.
+
+### Viewing Clients
+
+The **API Clients** page shows:
+
+- Client name
+- Organization
+- Contact email
+- Active/Inactive status
+- API key (hidden by default)
+- Rate limit (requests/minute)
+- Monthly budget
+- Creation date
+
+### API Key Management
+
+#### Viewing Keys
+
+1. Click the **eye icon** to show/hide API key
+2. Click the **copy icon** to copy to clipboard
+
+**Security:** Keys are masked by default. Only show when needed.
+
+#### Creating a New Client
+
+1. Click **Create Client** button
+2. Fill in the form:
+   - **Client Name** (required) - e.g., "my-marketing-app"
+   - **Organization** - Your company name
+   - **Contact Email** - Admin email
+   - **Rate Limit** - Requests per minute (default: 100)
+   - **Monthly Budget** - USD spending limit (optional)
+3. Click **Create**
+4. **Copy the API key immediately** - You'll need it for API requests
+
+#### Regenerating a Key
+
+1. Find the client in the list
+2. Click **Regenerate Key**
+3. Confirm the action (old key becomes invalid)
+4. Copy the new API key
+5. Update your application with the new key
+
+**Warning:** Regenerating invalidates the old key immediately. All requests using the old key will fail.
+
+#### Deleting a Client
+
+1. Find the client in the list
+2. Click **Delete**
+3. Confirm the action (cannot be undone)
+
+All API keys and usage history for this client will be preserved in the database for audit purposes, but the client won't be able to make new requests.
+
+### Client Statistics
+
+Each client card shows:
+
+- **Rate Limit** - Max requests per minute
+- **Monthly Budget** - Spending limit (or "Unlimited")
+- **Created** - Registration date
+
+---
+
+## Prompt Templates
+
+View and manage reusable prompt templates.
+
+### Template List
+
+Each template shows:
+
+- **Name** - e.g., "Technical Whitepaper Generator"
+- **Type** - whitepaper, linkedin_post, email, translation
+- **Public/Private** - Availability to all clients
+- **Active/Inactive** - Current status
+- **Description** - Template purpose
+- **Variables** - Required/optional input fields
+- **Statistics:**
+  - Usage Count - Times used
+  - Success Rate - Percentage of successful generations
+  - Max Length - Output limit
+  - Created Date
+
+### Using Templates
+
+Templates can be used via API by specifying `template_id` and providing `variables`:
+
+```bash
+curl -X POST http://localhost:4000/api/v1/llm/generate-content \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "template_id": "uuid-here",
+    "variables": {
+      "topic": "Cloud Security",
+      "target_audience": "IT Directors"
+    }
+  }'
+```
+
+### Template Details
+
+Click "View System Prompt" or "View User Prompt Template" to inspect the prompt structure.
+
+**Variables** are marked with `{{variable_name}}` in templates and replaced with actual values when used.
+
+---
+
+## Billing & Usage
+
+Analyze costs and usage patterns.
+
+### Time Range Selection
+
+Choose a time range to view:
+
+- Last 7 days
+- Last 30 days
+- Last 90 days
+
+### Summary Statistics
+
+Top cards show:
+
+- **Total Cost** - Spending in selected period
+- **Total Calls** - Number of LLM API requests
+- **Avg Cost Per Call** - Mean cost efficiency
+
+### Cost by Provider
+
+Bar chart showing spending breakdown:
+
+- Provider name (Claude, OpenAI, Groq)
+- Total cost (USD)
+- Number of calls
+- Percentage of total spend
+
+Colors:
+- Purple - Claude
+- Green - OpenAI
+- Orange - Groq
+
+### Cost by API Client
+
+Table showing per-client usage:
+
+| Client | Calls | Tokens | Cost | Budget | % Used |
+|--------|-------|--------|------|--------|--------|
+| my-app | 1,234 | 500K | $12.50 | $500 | 2.5% |
+
+**Budget alerts:**
+- 🟢 Green - Under 50%
+- 🟡 Yellow - 50-80%
+- 🔴 Red - Over 80%
+
+### Daily Costs Chart
+
+Simple bar visualization showing daily spending trends:
+
+- Date on left axis
+- Cost amount on right
+- Bar length proportional to spending
+
+Use this to identify spending spikes or patterns.
+
+---
+
+## Navigation
+
+### Top Menu
+
+- **LLMHub** - Homepage/Dashboard
+- **Providers** - Provider & model management
+- **API Clients** - Key management
+- **Templates** - Prompt templates
+- **Billing** - Usage and costs
+
+### Status Indicator
+
+Top-right corner shows:
+
+- 🟢 **Online** - Service is running
+- 🔴 **Offline** - Connection lost (check Docker/service)
+
+---
+
+## Tips & Best Practices
+
+### API Key Security
+
+- **Never commit API keys to version control**
+- Copy keys immediately after creation
+- Store in password manager or secrets vault
+- Rotate keys periodically using Regenerate
+- Delete unused clients
+
+### Cost Management
+
+1. Set monthly budgets for each client
+2. Monitor billing dashboard weekly
+3. Use cheaper providers (Groq) for simple tasks
+4. Use Claude Haiku or GPT-3.5 Turbo for routine operations
+5. Reserve Opus/GPT-4 for complex tasks
+
+### Rate Limiting
+
+- Default: 100 requests/minute per client
+- Increase for high-volume applications
+- Decrease for batch/background jobs
+- Monitor usage patterns in billing
+
+### Provider Selection
+
+Choose the right provider for your task:
+
+- **Complex analysis, long documents** → Claude 3.5 Sonnet or Opus
+- **General content generation** → GPT-4 Turbo or Claude Sonnet
+- **Simple tasks, speed critical** → Groq Mixtral or GPT-3.5
+- **Cost-sensitive applications** → Groq (much cheaper)
+- **Image generation** → OpenAI (DALL-E)
+
+---
+
+## Troubleshooting
+
+### "Web UI not built" Message
+
+If you see this message at the root URL:
+
+```bash
+cd web-ui
+npm install
+npm run build
+cd ..
+docker-compose build llmhub
+docker-compose up -d
+```
+
+### API Calls Failing
+
+1. Check API key is correct (copy from Web UI)
+2. Verify client is Active (not Inactive)
+3. Check rate limit not exceeded
+4. Verify budget not exceeded
+5. Check provider API key is configured (.env file)
+
+### Provider Shows "Not Configured"
+
+Edit `.env` file and add the provider's API key:
+
+```bash
+# Add to .env
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+GROQ_API_KEY=gsk_your-key-here
+```
+
+Then restart:
+
+```bash
+docker-compose restart llmhub
+```
+
+### Charts Not Loading
+
+1. Check browser console for errors (F12)
+2. Verify API endpoints working: http://localhost:4000/api/v1/admin/stats
+3. Check database has data (make some API calls first)
+
+---
+
+## Development Mode
+
+For Web UI development:
+
+```bash
+# Terminal 1: Start backend
+docker-compose up llmhub
+
+# Terminal 2: Start Vite dev server
+cd web-ui
+npm run dev
+# Opens on http://localhost:5173
+
+# Vite proxies API calls to http://localhost:4000
+```
+
+Changes to Vue files are reflected immediately with hot module replacement.
+
+---
+
+## Support
+
+- **API Documentation:** http://localhost:4000/docs
+- **Health Check:** http://localhost:4000/health
+- **View Logs:** `docker-compose logs -f llmhub`
+
+For questions, consult the [API Integration Guide](API_INTEGRATION.md).

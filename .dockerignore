@@ -1,0 +1,70 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+*.egg
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+.tox
+
+# Environment
+.env
+.env.local
+.env.*.local
+venv
+env
+ENV
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Tests
+tests
+*.test.py
+test_*
+
+# Logs
+logs/*.log
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Web UI development files (will be built separately)
+web-ui/node_modules
+web-ui/src
+web-ui/*.config.js
+web-ui/*.json
+web-ui/README.md
+
+# Database
+database/*.sql
+
+# Temporary files
+tmp
+temp
+*.tmp

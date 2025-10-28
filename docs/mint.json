@@ -1,0 +1,119 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "LLMHub Documentation",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#6D28D9",
+    "anchors": {
+      "from": "#7C3AED",
+      "to": "#A78BFA"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/yourusername/llmhub"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "https://github.com/yourusername/llmhub"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Developer Guide",
+      "url": "developers"
+    },
+    {
+      "name": "Deployment",
+      "url": "deployment"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://discord.gg/llmhub"
+    },
+    {
+      "name": "Blog",
+      "icon": "newspaper",
+      "url": "https://blog.llmhub.dev"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "features",
+        "architecture"
+      ]
+    },
+    {
+      "group": "User Guide",
+      "pages": [
+        "user-guide/web-console",
+        "user-guide/api-clients",
+        "user-guide/providers",
+        "user-guide/templates",
+        "user-guide/billing"
+      ]
+    },
+    {
+      "group": "Developer Guide",
+      "pages": [
+        "developers/overview",
+        "developers/local-development",
+        "developers/project-structure",
+        "developers/database-schema",
+        "developers/adding-providers",
+        "developers/frontend-development"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/overview",
+        "api-reference/authentication",
+        "api-reference/content-generation",
+        "api-reference/image-generation",
+        "api-reference/templates",
+        "api-reference/admin"
+      ]
+    },
+    {
+      "group": "Deployment",
+      "pages": [
+        "deployment/overview",
+        "deployment/docker",
+        "deployment/environment-variables",
+        "deployment/production",
+        "deployment/monitoring"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "reference/cost-tracking",
+        "reference/error-codes",
+        "reference/changelog"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/yourusername/llmhub",
+    "twitter": "https://twitter.com/llmhub"
+  }
+}

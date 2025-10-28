@@ -1,0 +1,286 @@
+---
+title: 'Quickstart'
+description: 'Get LLMHub running in 5 minutes'
+---
+
+## Prerequisites
+
+Before you begin, make sure you have installed:
+
+<CardGroup cols={2}>
+  <Card title="Docker" icon="docker" iconType="duotone">
+    Version 20.10 or higher
+  </Card>
+  <Card title="Docker Compose" icon="layer-group" iconType="duotone">
+    Version 2.0 or higher
+  </Card>
+</CardGroup>
+
+<Info>
+  **Optional**: API keys from LLM providers (Claude, OpenAI, Groq). You can add these later.
+</Info>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/yourusername/llmhub.git
+    cd llmhub
+    ```
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Copy the example environment file and configure your API keys:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Edit `.env` to add your LLM provider API keys:
+
+    ```bash
+    # Required
+    DATABASE_URL=postgresql://llm_user:llm_password@llmhub-db:5432/llm_hub
+
+    # Optional - Add your provider API keys
+    ANTHROPIC_API_KEY=your-claude-api-key
+    OPENAI_API_KEY=your-openai-api-key
+    GROQ_API_KEY=your-groq-api-key
+    ```
+
+    <Tip>
+      You can start with no API keys and add them later through environment variables.
+    </Tip>
+  </Step>
+
+  <Step title="Start the Services">
+    Launch LLMHub with Docker Compose:
+
+    ```bash
+    docker-compose up -d
+    ```
+
+    This will start:
+    - **LLMHub API** on `http://localhost:4000`
+    - **Web Console** served at `http://localhost:4000`
+    - **TimescaleDB** on port `5432`
+
+    Wait for the services to initialize (about 30 seconds).
+  </Step>
+
+  <Step title="Access the Web Console">
+    Open your browser and navigate to:
+
+    ```
+    http://localhost:4000
+    ```
+
+    You should see the LLMHub management console with the dashboard.
+  </Step>
+
+  <Step title="Get Your API Key">
+    The database is pre-seeded with test API keys. Retrieve them:
+
+    ```bash
+    docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+      "SELECT client_name, api_key FROM api_clients;"
+    ```
+
+    Example output:
+    ```
+         client_name      |                api_key
+    ----------------------+---------------------------------------
+     recloud_marketing    | recloud_marketing_prod_abc123...
+     sales_automation     | sales_automation_prod_xyz789...
+    ```
+  </Step>
+</Steps>
+
+## Make Your First API Call
+
+<CodeGroup>
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:4000/api/v1/llm/generate-content',
+    headers={
+        'X-API-Key': 'recloud_marketing_prod_abc123...',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'prompt': 'Write a haiku about cloud computing',
+        'languages': ['en'],
+        'provider': 'claude',
+        'model': 'claude-3-5-sonnet-20241022'
+    }
+)
+
+result = response.json()
+print(result['content']['en'])
+print(f"Cost: ${result['cost_usd']:.4f}")
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/v1/llm/generate-content', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': 'recloud_marketing_prod_abc123...',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: 'Write a haiku about cloud computing',
+    languages: ['en'],
+    provider: 'claude',
+    model: 'claude-3-5-sonnet-20241022'
+  })
+});
+
+const result = await response.json();
+console.log(result.content.en);
+console.log(`Cost: $${result.cost_usd.toFixed(4)}`);
+```
+
+```bash cURL
+curl -X POST http://localhost:4000/api/v1/llm/generate-content \
+  -H "X-API-Key: recloud_marketing_prod_abc123..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a haiku about cloud computing",
+    "languages": ["en"],
+    "provider": "claude",
+    "model": "claude-3-5-sonnet-20241022"
+  }'
+```
+
+</CodeGroup>
+
+<Check>
+  **Success!** You should receive generated content with cost tracking information.
+</Check>
+
+## Explore the Features
+
+<CardGroup cols={2}>
+  <Card title="View API Documentation" icon="book" href="http://localhost:4000/docs">
+    Interactive Swagger UI at `http://localhost:4000/docs`
+  </Card>
+  <Card title="Web Console" icon="browser" href="http://localhost:4000">
+    Manage clients, view analytics, and configure providers
+  </Card>
+  <Card title="Check Logs" icon="terminal">
+    ```bash
+    docker-compose logs -f llmhub
+    ```
+  </Card>
+  <Card title="Access Database" icon="database">
+    ```bash
+    docker-compose exec llmhub-db psql -U llm_user -d llm_hub
+    ```
+  </Card>
+</CardGroup>
+
+## Common Tasks
+
+### View Cost Analytics
+
+Navigate to the Billing page in the web console or query the database:
+
+```sql
+SELECT
+    day,
+    provider,
+    total_cost_usd,
+    total_calls
+FROM llm_daily_costs
+ORDER BY day DESC
+LIMIT 7;
+```
+
+### Create a New API Client
+
+Use the web console or create via SQL:
+
+```sql
+INSERT INTO api_clients (client_name, api_key, organization)
+VALUES (
+    'my-app',
+    'my-app_prod_' || gen_random_uuid()::text,
+    'My Company'
+);
+```
+
+### Add a Prompt Template
+
+```sql
+INSERT INTO prompt_templates (
+    template_name,
+    template_type,
+    description,
+    system_prompt,
+    user_prompt_template
+) VALUES (
+    'product_description',
+    'marketing',
+    'Generate product descriptions',
+    'You are a skilled marketing copywriter.',
+    'Write a compelling product description for: {product_name}'
+);
+```
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="User Guide" icon="book-open" href="/user-guide/web-console">
+    Learn how to use the web console
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Explore all API endpoints
+  </Card>
+  <Card title="Production Deployment" icon="server" href="/deployment/production">
+    Deploy to production environment
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Service won't start">
+    Check that ports 4000 and 5432 are not in use:
+    ```bash
+    lsof -i :4000
+    lsof -i :5432
+    ```
+    View service logs:
+    ```bash
+    docker-compose logs llmhub
+    docker-compose logs llmhub-db
+    ```
+  </Accordion>
+
+  <Accordion title="API calls fail with 401">
+    Verify your API key is correct and the client is active:
+    ```bash
+    docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+      "SELECT client_name, is_active FROM api_clients WHERE api_key = 'your-key';"
+    ```
+  </Accordion>
+
+  <Accordion title="LLM provider errors">
+    Check that your provider API keys are set in `.env` and valid. View provider status in the web console under "Providers & Models".
+  </Accordion>
+
+  <Accordion title="Database connection errors">
+    Ensure the database is running and healthy:
+    ```bash
+    docker-compose ps llmhub-db
+    docker-compose exec llmhub-db pg_isready
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  **Development Mode**: This quickstart uses default credentials suitable for development only. See [Production Deployment](/deployment/production) for security best practices.
+</Warning>

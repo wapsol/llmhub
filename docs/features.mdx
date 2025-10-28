@@ -1,0 +1,365 @@
+---
+title: 'Features'
+description: 'Comprehensive overview of LLMHub capabilities'
+---
+
+## Core Features
+
+### Multi-Provider LLM Integration
+
+LLMHub provides a unified API to interact with multiple LLM providers without managing individual integrations.
+
+<CardGroup cols={3}>
+  <Card title="Anthropic Claude" icon="brain" iconType="duotone">
+    Claude 3.5 Sonnet, Opus, and Haiku with 200K context window
+  </Card>
+  <Card title="OpenAI" icon="robot" iconType="duotone">
+    GPT-4, GPT-4 Turbo, and GPT-3.5 Turbo models
+  </Card>
+  <Card title="Groq" icon="bolt" iconType="duotone">
+    Ultra-fast Mixtral and LLaMA 2 inference
+  </Card>
+</CardGroup>
+
+#### Provider Features
+
+- **Automatic Provider Selection**: Route requests to the best provider based on cost, speed, or availability
+- **Failover Support**: Automatically retry with alternative providers on failures
+- **Model Management**: Enable/disable specific models per provider
+- **Cost Optimization**: Choose models based on your budget and performance needs
+
+### Real-Time Cost Tracking
+
+<Info>
+  Built on **TimescaleDB** for efficient time-series data storage and automatic aggregations.
+</Info>
+
+#### What Gets Tracked
+
+- **Per-Request Costs**: Input and output token counts with accurate pricing
+- **Provider Breakdown**: See which providers are most cost-effective
+- **Client Attribution**: Track usage and costs per API client
+- **Time-Series Data**: Hourly, daily, and monthly cost aggregations
+
+#### Continuous Aggregations
+
+```sql
+-- Automatically maintained views
+SELECT * FROM llm_hourly_costs;   -- Real-time hourly summaries
+SELECT * FROM llm_daily_costs;    -- Daily cost totals
+SELECT * FROM llm_monthly_costs;  -- Monthly billing reports
+```
+
+#### Budget Management
+
+- **Client Budget Limits**: Set monthly spending caps per API client
+- **Rate Limiting**: Control requests per minute for each client
+- **Usage Alerts**: Monitor when clients approach budget thresholds
+- **Cost Analytics**: Visualize spending trends in the web console
+
+### Prompt Template System
+
+Reusable, versioned templates for consistent LLM interactions.
+
+<CodeGroup>
+
+```sql Create Template
+INSERT INTO prompt_templates (
+    template_name,
+    template_type,
+    description,
+    system_prompt,
+    user_prompt_template,
+    variables
+) VALUES (
+    'email_campaign',
+    'marketing',
+    'Generate email campaigns with tone control',
+    'You are an expert email marketing copywriter.',
+    'Write a {tone} email for {product_name} targeting {audience}',
+    '{"tone": {"type": "string", "required": true},
+      "product_name": {"type": "string", "required": true},
+      "audience": {"type": "string", "required": true}}'::jsonb
+);
+```
+
+```python Use Template
+response = requests.post(
+    'http://localhost:4000/api/v1/templates/email_campaign/generate',
+    headers={'X-API-Key': 'your-key'},
+    json={
+        'variables': {
+            'tone': 'professional',
+            'product_name': 'EcoBottle',
+            'audience': 'environmentally conscious millennials'
+        },
+        'provider': 'claude'
+    }
+)
+```
+
+</CodeGroup>
+
+#### Template Features
+
+- **Variable Substitution**: Dynamic content with typed variables
+- **Version History**: A/B test different template versions
+- **Usage Tracking**: Monitor performance and success rates
+- **System Templates**: Shared templates available to all clients
+- **Client Templates**: Private templates for specific clients
+
+### Web Management Console
+
+Beautiful, modern UI built with **Preact** and **Tailwind CSS**.
+
+<Frame>
+  <img src="/images/web-console-dashboard.png" alt="LLMHub Dashboard" />
+</Frame>
+
+#### Dashboard Features
+
+- **Real-Time Metrics**: Total clients, templates, calls, and costs
+- **Provider Status**: Check which providers are configured
+- **Quick Actions**: Fast access to common tasks
+
+#### API Client Management
+
+- **Create & Manage**: Generate API keys with custom settings
+- **Key Visibility**: Show/hide API keys with secure masking
+- **Copy to Clipboard**: One-click key copying
+- **Rate Limits**: Configure per-client request limits
+- **Budget Controls**: Set monthly spending caps
+
+#### Provider Configuration
+
+- **Model Toggles**: Enable/disable specific models
+- **Cost Information**: View per-model pricing
+- **Configuration Status**: See which providers have API keys set
+- **Model Details**: Context windows, capabilities, and use cases
+
+#### Billing Analytics
+
+- **Time Range Selection**: View costs for 7, 30, or 90 days
+- **Provider Breakdown**: Visual charts showing cost distribution
+- **Client Usage**: Table of per-client costs and budget utilization
+- **Daily Trends**: Bar charts of daily spending patterns
+
+#### Template Library
+
+- **Browse Templates**: View all available prompt templates
+- **Template Details**: System prompts, variables, and usage stats
+- **Version History**: Track template changes over time
+- **Success Rates**: Monitor template effectiveness
+
+### API Key Authentication
+
+Secure, scalable authentication for API access.
+
+```http
+POST /api/v1/llm/generate-content
+X-API-Key: your-api-key-here
+Content-Type: application/json
+```
+
+#### Security Features
+
+- **Header-Based Auth**: Industry-standard `X-API-Key` header
+- **Per-Client Keys**: Unique keys for each application
+- **Key Rotation**: Regenerate keys without service disruption
+- **Active Status**: Enable/disable clients instantly
+- **Audit Trail**: Full logging of API key usage
+
+### API Documentation
+
+Comprehensive, interactive documentation.
+
+<CardGroup cols={2}>
+  <Card title="Swagger UI" icon="browser" href="http://localhost:4000/docs">
+    Interactive API explorer with live testing
+  </Card>
+  <Card title="ReDoc" icon="file-lines" href="http://localhost:4000/redoc">
+    Beautiful, detailed API reference
+  </Card>
+</CardGroup>
+
+Features:
+- **OpenAPI 3.0**: Standards-compliant API specification
+- **Try It Out**: Test endpoints directly in the browser
+- **Request Examples**: Code samples in multiple languages
+- **Response Schemas**: Detailed type information
+
+### Database Schema
+
+Optimized PostgreSQL + TimescaleDB schema.
+
+#### Key Tables
+
+<AccordionGroup>
+  <Accordion title="api_clients - API Key Management">
+    ```sql
+    CREATE TABLE api_clients (
+        client_id SERIAL PRIMARY KEY,
+        client_name VARCHAR(100) NOT NULL UNIQUE,
+        api_key VARCHAR(255) NOT NULL UNIQUE,
+        organization VARCHAR(200),
+        contact_email VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        rate_limit INTEGER DEFAULT 100,
+        monthly_budget_usd DECIMAL(10,2),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="prompt_templates - Reusable Prompts">
+    ```sql
+    CREATE TABLE prompt_templates (
+        template_id SERIAL PRIMARY KEY,
+        template_name VARCHAR(100) NOT NULL,
+        template_type VARCHAR(50),
+        description TEXT,
+        system_prompt TEXT,
+        user_prompt_template TEXT NOT NULL,
+        variables JSONB,
+        is_active BOOLEAN DEFAULT TRUE,
+        is_public BOOLEAN DEFAULT FALSE,
+        usage_count INTEGER DEFAULT 0,
+        success_rate DECIMAL(5,2)
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="llm_generation_log - Time-Series Data">
+    ```sql
+    CREATE TABLE llm_generation_log (
+        log_id SERIAL,
+        client_id INTEGER REFERENCES api_clients(client_id),
+        provider VARCHAR(50) NOT NULL,
+        model VARCHAR(100) NOT NULL,
+        prompt_text TEXT,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        cost_usd DECIMAL(10,6),
+        generation_time_ms INTEGER,
+        success BOOLEAN DEFAULT TRUE,
+        error_message TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Convert to TimescaleDB hypertable
+    SELECT create_hypertable('llm_generation_log', 'created_at');
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Error Handling
+
+Comprehensive error handling with detailed responses.
+
+```json Response Format
+{
+  "detail": {
+    "error": "authentication_failed",
+    "message": "Invalid API key provided",
+    "code": "AUTH_001",
+    "timestamp": "2025-10-28T10:30:00Z"
+  }
+}
+```
+
+#### HTTP Status Codes
+
+- `200 OK`: Successful request
+- `400 Bad Request`: Invalid request parameters
+- `401 Unauthorized`: Missing or invalid API key
+- `403 Forbidden`: Client is inactive or over budget
+- `422 Unprocessable Entity`: Validation errors
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Server-side errors
+
+### Logging & Monitoring
+
+Structured logging with **structlog** for production observability.
+
+```python
+# Automatic request logging
+{
+  "event": "llm_request",
+  "client": "recloud_marketing",
+  "provider": "claude",
+  "model": "claude-3-5-sonnet-20241022",
+  "input_tokens": 45,
+  "output_tokens": 128,
+  "cost_usd": 0.0024,
+  "duration_ms": 1420,
+  "timestamp": "2025-10-28T10:30:00Z"
+}
+```
+
+## Performance Features
+
+### Asynchronous Processing
+
+- **FastAPI Async**: Non-blocking I/O for high concurrency
+- **Connection Pooling**: Efficient database connections
+- **Streaming Responses**: Real-time content generation (coming soon)
+
+### Scalability
+
+- **Stateless Design**: Horizontal scaling with load balancers
+- **Docker Support**: Container-based deployment
+- **Database Optimization**: Indexed queries and partitioned tables
+- **Caching Ready**: Redis integration support (coming soon)
+
+### Data Retention
+
+- **Automatic Cleanup**: 90-day retention policy on time-series data
+- **Compression**: TimescaleDB automatic compression
+- **Archival**: Export historical data for long-term storage
+
+## Integration Features
+
+### REST API
+
+Simple, predictable REST endpoints with JSON payloads.
+
+### Webhook Support (Coming Soon)
+
+- **Event Notifications**: Budget alerts, usage milestones
+- **Delivery Guarantees**: Retry logic with exponential backoff
+
+### SDKs (Planned)
+
+- Python SDK
+- JavaScript/TypeScript SDK
+- Go SDK
+
+## Security Features
+
+<Warning>
+  LLMHub is designed for internal/private deployments. Additional security hardening is recommended for public-facing installations.
+</Warning>
+
+- **API Key Authentication**: Per-client access control
+- **Rate Limiting**: Prevent abuse and manage costs
+- **Budget Enforcement**: Spending caps per client
+- **Audit Logging**: Complete request history
+- **CORS Configuration**: Customizable origin policies
+- **SQL Injection Prevention**: Parameterized queries with SQLAlchemy
+
+## Coming Soon
+
+<CardGroup cols={2}>
+  <Card title="Streaming Responses" icon="water">
+    Server-sent events for real-time token generation
+  </Card>
+  <Card title="Function Calling" icon="function">
+    Tool use and structured outputs
+  </Card>
+  <Card title="Vector Search" icon="magnifying-glass">
+    RAG support with embeddings storage
+  </Card>
+  <Card title="Multi-Tenancy" icon="users">
+    Organization-level isolation and billing
+  </Card>
+</CardGroup>

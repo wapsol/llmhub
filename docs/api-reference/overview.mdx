@@ -1,0 +1,427 @@
+---
+title: 'API Overview'
+description: 'Complete REST API reference for LLMHub'
+---
+
+## Base URL
+
+All API requests are made to:
+
+```
+http://localhost:4000/api/v1
+```
+
+Replace `localhost:4000` with your deployment URL in production.
+
+## Authentication
+
+<Info>
+  All endpoints require authentication using an API key in the request header.
+</Info>
+
+```http
+X-API-Key: your-api-key-here
+```
+
+### Getting an API Key
+
+1. **Via Web Console**: Navigate to "API Clients" and create a new client
+2. **Via Database**: Query the `api_clients` table for seeded keys
+3. **Via Admin API**: Use the admin endpoints to create clients programmatically
+
+```bash
+# Get seeded API keys
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+  "SELECT client_name, api_key FROM api_clients;"
+```
+
+## Request Format
+
+All API requests must include:
+
+- **Content-Type**: `application/json`
+- **X-API-Key**: Your API key
+- **JSON Body**: Request parameters
+
+```bash
+curl -X POST http://localhost:4000/api/v1/llm/generate-content \
+  -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello", "languages": ["en"], "provider": "claude"}'
+```
+
+## Response Format
+
+### Successful Response
+
+```json
+{
+  "content": {
+    "en": "Generated text in English..."
+  },
+  "provider": "claude",
+  "model": "claude-3-5-sonnet-20241022",
+  "input_tokens": 15,
+  "output_tokens": 128,
+  "cost_usd": 0.0024,
+  "generation_time_ms": 1420
+}
+```
+
+### Error Response
+
+```json
+{
+  "detail": {
+    "error": "validation_error",
+    "message": "Invalid provider specified",
+    "field": "provider",
+    "timestamp": "2025-10-28T10:30:00Z"
+  }
+}
+```
+
+## Status Codes
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `200` | OK | Request successful |
+| `400` | Bad Request | Invalid request parameters |
+| `401` | Unauthorized | Missing or invalid API key |
+| `403` | Forbidden | Client inactive or over budget |
+| `422` | Unprocessable Entity | Validation error |
+| `429` | Too Many Requests | Rate limit exceeded |
+| `500` | Internal Server Error | Server-side error |
+| `502` | Bad Gateway | LLM provider unavailable |
+
+## Rate Limiting
+
+API requests are rate-limited per client:
+
+- **Default**: 100 requests/minute
+- **Configurable**: Set custom limits per client
+- **Headers**: Rate limit info included in responses
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1635724800
+```
+
+<Warning>
+  Exceeding rate limits returns `429 Too Many Requests`. Implement exponential backoff in your application.
+</Warning>
+
+## Endpoints Overview
+
+### Content Generation
+
+<Card title="Generate Content" icon="pen-to-square" href="/api-reference/content-generation">
+  Generate text content using LLM providers
+  ```
+  POST /api/v1/llm/generate-content
+  ```
+</Card>
+
+### Image Generation
+
+<Card title="Generate Images" icon="image" href="/api-reference/image-generation">
+  Create images with DALL-E
+  ```
+  POST /api/v1/images/generate
+  ```
+</Card>
+
+### Template Management
+
+<CardGroup cols={2}>
+  <Card title="List Templates" icon="list">
+    ```
+    GET /api/v1/templates
+    ```
+  </Card>
+  <Card title="Get Template" icon="file">
+    ```
+    GET /api/v1/templates/{id}
+    ```
+  </Card>
+  <Card title="Generate from Template" icon="wand-magic-sparkles">
+    ```
+    POST /api/v1/templates/{name}/generate
+    ```
+  </Card>
+  <Card title="Create Template" icon="plus">
+    ```
+    POST /api/v1/templates
+    ```
+  </Card>
+</CardGroup>
+
+### Admin Endpoints
+
+<Card title="Admin API" icon="shield-halved" href="/api-reference/admin">
+  Management endpoints for web console
+  ```
+  GET /api/v1/admin/stats
+  GET /api/v1/admin/clients
+  POST /api/v1/admin/clients
+  ```
+</Card>
+
+## Interactive Documentation
+
+<CardGroup cols={2}>
+  <Card title="Swagger UI" icon="browser" href="http://localhost:4000/docs">
+    Interactive API explorer with live testing
+  </Card>
+  <Card title="ReDoc" icon="book" href="http://localhost:4000/redoc">
+    Detailed API documentation
+  </Card>
+</CardGroup>
+
+## Code Examples
+
+<CodeGroup>
+
+```python Python
+import requests
+
+# Initialize client
+API_KEY = "your-api-key"
+BASE_URL = "http://localhost:4000/api/v1"
+
+headers = {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}
+
+# Generate content
+response = requests.post(
+    f"{BASE_URL}/llm/generate-content",
+    headers=headers,
+    json={
+        "prompt": "Explain quantum computing in simple terms",
+        "languages": ["en"],
+        "provider": "claude",
+        "model": "claude-3-5-sonnet-20241022"
+    }
+)
+
+data = response.json()
+print(data['content']['en'])
+print(f"Cost: ${data['cost_usd']:.4f}")
+```
+
+```javascript JavaScript
+const API_KEY = 'your-api-key';
+const BASE_URL = 'http://localhost:4000/api/v1';
+
+async function generateContent(prompt) {
+  const response = await fetch(`${BASE_URL}/llm/generate-content`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': API_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt,
+      languages: ['en'],
+      provider: 'claude',
+      model: 'claude-3-5-sonnet-20241022'
+    })
+  });
+
+  const data = await response.json();
+  console.log(data.content.en);
+  console.log(`Cost: $${data.cost_usd.toFixed(4)}`);
+  return data;
+}
+
+generateContent('Explain quantum computing in simple terms');
+```
+
+```bash cURL
+curl -X POST http://localhost:4000/api/v1/llm/generate-content \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain quantum computing in simple terms",
+    "languages": ["en"],
+    "provider": "claude",
+    "model": "claude-3-5-sonnet-20241022"
+  }'
+```
+
+```go Go
+package main
+
+import (
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+const (
+    APIKey  = "your-api-key"
+    BaseURL = "http://localhost:4000/api/v1"
+)
+
+type GenerateRequest struct {
+    Prompt    string   `json:"prompt"`
+    Languages []string `json:"languages"`
+    Provider  string   `json:"provider"`
+    Model     string   `json:"model"`
+}
+
+type GenerateResponse struct {
+    Content map[string]string `json:"content"`
+    CostUSD float64           `json:"cost_usd"`
+}
+
+func generateContent(prompt string) (*GenerateResponse, error) {
+    reqBody := GenerateRequest{
+        Prompt:    prompt,
+        Languages: []string{"en"},
+        Provider:  "claude",
+        Model:     "claude-3-5-sonnet-20241022",
+    }
+
+    jsonData, _ := json.Marshal(reqBody)
+
+    req, _ := http.NewRequest("POST", BaseURL+"/llm/generate-content", bytes.NewBuffer(jsonData))
+    req.Header.Set("X-API-Key", APIKey)
+    req.Header.Set("Content-Type", "application/json")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result GenerateResponse
+    json.NewDecoder(resp.Body).Decode(&result)
+
+    return &result, nil
+}
+```
+
+</CodeGroup>
+
+## SDK Support
+
+<Info>
+  Official SDKs coming soon! For now, use the REST API directly with your preferred HTTP client.
+</Info>
+
+### Planned SDKs
+
+- **Python SDK**: Type-safe client with async support
+- **JavaScript/TypeScript SDK**: Browser and Node.js compatible
+- **Go SDK**: High-performance client for backend services
+
+## Pagination
+
+List endpoints support pagination:
+
+```json
+{
+  "page": 1,
+  "page_size": 20,
+  "total": 150,
+  "items": [...]
+}
+```
+
+Query parameters:
+- `page`: Page number (default: 1)
+- `page_size`: Items per page (default: 20, max: 100)
+
+## Filtering & Sorting
+
+Some endpoints support filtering and sorting:
+
+```bash
+GET /api/v1/templates?type=marketing&sort=created_at:desc
+```
+
+## Webhooks (Coming Soon)
+
+Subscribe to events:
+
+- `budget.threshold_reached`: Client approaching budget limit
+- `generation.failed`: LLM request failed
+- `client.created`: New API client added
+
+## WebSocket Support (Planned)
+
+Real-time streaming for:
+
+- Live token generation
+- Progress updates for long-running tasks
+- Real-time cost tracking
+
+## Versioning
+
+The API uses URL versioning (`/api/v1/`). Breaking changes will increment the major version.
+
+<Warning>
+  Always specify the API version in your requests. Default version may change in future releases.
+</Warning>
+
+## Best Practices
+
+### Error Handling
+
+Always check status codes and handle errors gracefully:
+
+```python
+try:
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    result = response.json()
+except requests.exceptions.HTTPError as e:
+    if e.response.status_code == 429:
+        # Rate limited - implement backoff
+        time.sleep(60)
+        retry()
+    elif e.response.status_code == 502:
+        # Provider down - try different provider
+        fallback_provider()
+    else:
+        # Log and handle error
+        logger.error(f"API error: {e}")
+```
+
+### Retries
+
+Implement exponential backoff for transient errors:
+
+```python
+from tenacity import retry, wait_exponential, stop_after_attempt
+
+@retry(wait=wait_exponential(multiplier=1, min=4, max=60),
+       stop=stop_after_attempt(3))
+def call_llm_with_retry(prompt):
+    return requests.post(url, headers=headers, json={"prompt": prompt})
+```
+
+### Cost Optimization
+
+1. **Choose appropriate models**: Use cheaper models for simple tasks
+2. **Monitor usage**: Check the web console billing page regularly
+3. **Set budgets**: Configure monthly limits per client
+4. **Cache results**: Store frequently used responses
+5. **Batch requests**: Combine multiple prompts when possible
+
+## Support
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/yourusername/llmhub/issues">
+    Report bugs and request features
+  </Card>
+  <Card title="Documentation" icon="book" href="/introduction">
+    Browse the full documentation
+  </Card>
+</CardGroup>

@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # TimescaleDB Database for LLMHub
+  # ============================================================================
+  llmhub-db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: llmhub-db
+    environment:
+      POSTGRES_USER: llm_user
+      POSTGRES_PASSWORD: llm_dev_password
+      POSTGRES_DB: llm_hub
+    ports:
+      - "5433:5432"  # External port 5433 to avoid conflicts with other postgres instances
+    volumes:
+      - llmhub_db_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - llmhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llm_user -d llm_hub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ============================================================================
+  # LLMHub FastAPI Application
+  # ============================================================================
+  llmhub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llmhub
+    ports:
+      - "4000:4000"
+    environment:
+      # Service Configuration
+      SERVICE_NAME: llm_hub
+      SERVICE_VERSION: "1.0.0"
+      LOG_LEVEL: info
+
+      # Database Configuration
+      DATABASE_URL: postgresql://llm_user:llm_dev_password@llmhub-db:5432/llm_hub
+      DB_POOL_SIZE: 10
+      DB_MAX_OVERFLOW: 20
+      DB_ECHO: "false"
+
+      # Redis Cache (optional - uncomment if using Redis)
+      # REDIS_URL: redis://redis:6379
+
+      # LLM Provider API Keys (REQUIRED - Set these!)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+
+      # LLM Default Settings
+      DEFAULT_PROVIDER: claude
+      DEFAULT_MODEL: claude-3-5-sonnet-20241022
+      DEFAULT_MAX_TOKENS: 4096
+      DEFAULT_TEMPERATURE: 0.7
+
+      # CORS Configuration
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:4000
+
+      # API Documentation
+      DOCS_URL: /docs
+      REDOC_URL: /redoc
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      llmhub-db:
+        condition: service_healthy
+    networks:
+      - llmhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ============================================================================
+  # Redis Cache (Optional - uncomment to enable caching)
+  # ============================================================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: llmhub-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - llmhub_redis_data:/data
+  #   networks:
+  #     - llmhub-network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+  #   restart: unless-stopped
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  llmhub-network:
+    driver: bridge
+    name: llmhub-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  llmhub_db_data:
+    driver: local
+    name: llmhub_db_data
+  # llmhub_redis_data:
+  #   driver: local
+  #   name: llmhub_redis_data

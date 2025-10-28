@@ -1,0 +1,549 @@
+# LLMHub Docker Setup Guide
+
+Complete guide for building and running LLMHub with Docker.
+
+## Prerequisites
+
+- Docker (version 20.10 or later)
+- Docker Compose (version 2.0 or later)
+- 4GB RAM minimum (8GB recommended)
+- 10GB disk space
+
+## Quick Start
+
+### 1. Configure Environment
+
+Copy the example environment file and add your LLM provider API keys:
+
+```bash
+cd /Users/defaultuser/llm-service
+cp .env.example .env
+```
+
+Edit `.env` and add your API keys:
+
+```bash
+# Required: At least one LLM provider API key
+OPENAI_API_KEY=sk-your-openai-key-here
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key-here
+GROQ_API_KEY=gsk_your-groq-key-here
+```
+
+### 2. Build and Run
+
+```bash
+# Start all services (database + application)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f llmhub
+
+# Check service health
+curl http://localhost:4000/health
+```
+
+**Access Points:**
+
+- **Web UI:** http://localhost:4000
+- **API Docs:** http://localhost:4000/docs
+- **Database:** localhost:5433
+
+### 3. Get API Keys
+
+Retrieve the auto-generated API keys for your clients:
+
+```bash
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+  "SELECT client_name, api_key FROM api_clients;"
+```
+
+Save these keys for making API requests.
+
+---
+
+## Detailed Docker Commands
+
+### Building the Image
+
+#### Build from Dockerfile
+
+```bash
+# Basic build
+docker build -t llmhub:latest .
+
+# Build with specific tag
+docker build -t llmhub:1.0.0 .
+
+# Build with no cache (clean build)
+docker build --no-cache -t llmhub:latest .
+
+# Build with build arguments
+docker build \
+  --build-arg PYTHON_VERSION=3.11 \
+  -t llmhub:latest \
+  .
+```
+
+#### Build with Docker Compose
+
+```bash
+# Build all services
+docker-compose build
+
+# Build specific service
+docker-compose build llmhub
+
+# Build with no cache
+docker-compose build --no-cache
+```
+
+### Creating Containers
+
+#### Using Docker Compose (Recommended)
+
+```bash
+# Start services in detached mode
+docker-compose up -d
+
+# Start with rebuilding images
+docker-compose up -d --build
+
+# Start specific service
+docker-compose up -d llmhub
+
+# Start with live logs
+docker-compose up
+```
+
+#### Using Docker Run (Manual)
+
+First, create a network and start database:
+
+```bash
+# Create network
+docker network create llmhub-network
+
+# Start TimescaleDB
+docker run -d \
+  --name llmhub-db \
+  --network llmhub-network \
+  -p 5433:5432 \
+  -e POSTGRES_USER=llm_user \
+  -e POSTGRES_PASSWORD=llm_dev_password \
+  -e POSTGRES_DB=llm_hub \
+  -v llmhub_db_data:/var/lib/postgresql/data \
+  -v $(pwd)/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro \
+  timescale/timescaledb:latest-pg15
+
+# Wait for database to be ready
+sleep 10
+
+# Start LLMHub application
+docker run -d \
+  --name llmhub \
+  --network llmhub-network \
+  -p 4000:4000 \
+  -e DATABASE_URL=postgresql://llm_user:llm_dev_password@llmhub-db:5432/llm_hub \
+  -e OPENAI_API_KEY=${OPENAI_API_KEY} \
+  -e ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} \
+  -e GROQ_API_KEY=${GROQ_API_KEY} \
+  -v $(pwd)/logs:/app/logs \
+  llmhub:latest
+```
+
+### Managing Containers
+
+```bash
+# View running containers
+docker-compose ps
+
+# Stop all services
+docker-compose stop
+
+# Stop specific service
+docker-compose stop llmhub
+
+# Start stopped services
+docker-compose start
+
+# Restart services
+docker-compose restart llmhub
+
+# Remove containers (keeps data)
+docker-compose down
+
+# Remove containers and volumes (deletes data!)
+docker-compose down -v
+
+# View logs
+docker-compose logs llmhub
+docker-compose logs -f llmhub  # Follow logs
+docker-compose logs --tail=100 llmhub  # Last 100 lines
+
+# Execute command in running container
+docker-compose exec llmhub bash
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub
+```
+
+### Image Management
+
+```bash
+# List images
+docker images | grep llmhub
+
+# Remove image
+docker rmi llmhub:latest
+
+# Tag image
+docker tag llmhub:latest llmhub:v1.0.0
+
+# Save image to file
+docker save llmhub:latest | gzip > llmhub-latest.tar.gz
+
+# Load image from file
+docker load < llmhub-latest.tar.gz
+
+# Push to registry (if configured)
+docker tag llmhub:latest your-registry.com/llmhub:latest
+docker push your-registry.com/llmhub:latest
+```
+
+---
+
+## Building the Web UI
+
+The Web UI needs to be built before creating the Docker image:
+
+```bash
+# Navigate to web-ui directory
+cd web-ui
+
+# Install dependencies
+npm install
+
+# Build for production
+npm run build
+
+# Output will be in web-ui/dist/
+```
+
+The `Dockerfile` will copy the `web-ui/dist/` directory into the image.
+
+**Note:** If you rebuild the Web UI, you need to rebuild the Docker image:
+
+```bash
+cd web-ui
+npm run build
+cd ..
+docker-compose build llmhub
+docker-compose up -d llmhub
+```
+
+---
+
+## Environment Variables
+
+### Required Variables
+
+```bash
+# Database (automatically set in docker-compose.yml)
+DATABASE_URL=postgresql://llm_user:llm_dev_password@llmhub-db:5432/llm_hub
+
+# At least one LLM provider API key
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+```
+
+### Optional Variables
+
+```bash
+# Service Configuration
+SERVICE_NAME=llm_hub
+SERVICE_VERSION=1.0.0
+LOG_LEVEL=info
+
+# LLM Defaults
+DEFAULT_PROVIDER=claude
+DEFAULT_MODEL=claude-3-5-sonnet-20241022
+DEFAULT_MAX_TOKENS=4096
+DEFAULT_TEMPERATURE=0.7
+
+# CORS (adjust for your frontend URLs)
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4000
+
+# Database Pool
+DB_POOL_SIZE=10
+DB_MAX_OVERFLOW=20
+```
+
+---
+
+## Volume Management
+
+### Database Data
+
+Database data is stored in a Docker volume:
+
+```bash
+# List volumes
+docker volume ls | grep llmhub
+
+# Inspect volume
+docker volume inspect llmhub_db_data
+
+# Backup database
+docker-compose exec llmhub-db pg_dump -U llm_user llm_hub > backup.sql
+
+# Restore database
+cat backup.sql | docker-compose exec -T llmhub-db psql -U llm_user -d llm_hub
+
+# Remove volume (deletes all data!)
+docker volume rm llmhub_db_data
+```
+
+### Application Logs
+
+Logs are stored in `./logs` directory (mounted as volume):
+
+```bash
+# View logs
+tail -f logs/llmhub.log
+
+# Clear logs
+rm logs/*.log
+```
+
+---
+
+## Networking
+
+### Port Mapping
+
+- **4000** - LLMHub web UI and API
+- **5433** - PostgreSQL/TimescaleDB (mapped from container port 5432)
+
+### Accessing from Other Containers
+
+If you have other applications that need to access LLMHub:
+
+```yaml
+# In your app's docker-compose.yml
+version: '3.8'
+services:
+  your-app:
+    image: your-app:latest
+    networks:
+      - llmhub-network  # Join the LLMHub network
+    environment:
+      LLMHUB_URL: http://llmhub:4000  # Internal DNS name
+
+networks:
+  llmhub-network:
+    external: true  # Use existing network
+```
+
+---
+
+## Troubleshooting
+
+### Container Won't Start
+
+```bash
+# Check logs
+docker-compose logs llmhub
+
+# Check if database is ready
+docker-compose exec llmhub-db pg_isready -U llm_user
+
+# Restart services
+docker-compose restart
+```
+
+### Database Connection Issues
+
+```bash
+# Check database is running
+docker-compose ps llmhub-db
+
+# Test database connection
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c "SELECT 1;"
+
+# Check DATABASE_URL environment variable
+docker-compose exec llmhub env | grep DATABASE_URL
+```
+
+### Out of Memory
+
+```bash
+# Check resource usage
+docker stats llmhub llmhub-db
+
+# Increase Docker memory limit (Docker Desktop)
+# Settings > Resources > Memory > Increase to 4GB+
+```
+
+### Port Already in Use
+
+```bash
+# Check what's using port 4000
+lsof -i :4000
+
+# Change port in docker-compose.yml
+ports:
+  - "8080:4000"  # Use port 8080 externally
+```
+
+### Web UI Not Loading
+
+```bash
+# Check if web UI was built
+ls -la web-ui/dist/
+
+# If dist/ doesn't exist, build it:
+cd web-ui
+npm install
+npm run build
+cd ..
+
+# Rebuild Docker image
+docker-compose build llmhub
+docker-compose up -d llmhub
+```
+
+---
+
+## Production Deployment
+
+### Security Checklist
+
+- [ ] Change default database password in `.env`
+- [ ] Use strong, unique API keys
+- [ ] Set up firewall rules (block port 5433 externally)
+- [ ] Enable HTTPS with reverse proxy (nginx/traefik)
+- [ ] Set `LOG_LEVEL=warning` or `error` in production
+- [ ] Configure backup strategy for database
+- [ ] Set appropriate `CORS_ORIGINS` for your frontend
+
+### Using Reverse Proxy (Example with Nginx)
+
+```nginx
+# /etc/nginx/sites-available/llmhub
+server {
+    listen 80;
+    server_name llmhub.yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Health Checks
+
+Monitor service health:
+
+```bash
+# Basic health check
+curl http://localhost:4000/health
+
+# Liveness probe (Kubernetes)
+curl http://localhost:4000/health/live
+
+# Readiness probe (Kubernetes)
+curl http://localhost:4000/health/ready
+```
+
+---
+
+## Maintenance
+
+### Updating LLMHub
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Rebuild web UI
+cd web-ui && npm install && npm run build && cd ..
+
+# Rebuild and restart
+docker-compose build
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f llmhub
+```
+
+### Database Maintenance
+
+```bash
+# Vacuum database (reclaim space)
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c "VACUUM ANALYZE;"
+
+# View database size
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+  "SELECT pg_size_pretty(pg_database_size('llm_hub'));"
+
+# View table sizes
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+  "SELECT tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) FROM pg_tables WHERE schemaname = 'public' ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
+```
+
+---
+
+## Complete Example: Fresh Installation
+
+```bash
+# 1. Clone repository (if applicable)
+cd /Users/defaultuser/llm-service
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and add your API keys
+
+# 3. Build web UI
+cd web-ui
+npm install
+npm run build
+cd ..
+
+# 4. Build and start services
+docker-compose build
+docker-compose up -d
+
+# 5. Wait for services to be ready (30 seconds)
+sleep 30
+
+# 6. Check health
+curl http://localhost:4000/health
+
+# 7. Get API keys
+docker-compose exec llmhub-db psql -U llm_user -d llm_hub -c \
+  "SELECT client_name, api_key FROM api_clients;"
+
+# 8. Open web UI
+open http://localhost:4000
+
+# 9. Test API (replace with actual API key)
+curl -X POST http://localhost:4000/api/v1/llm/generate-content \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Test", "provider": "claude", "languages": ["en"]}'
+```
+
+**Success!** Your LLMHub instance is now running.
+
+---
+
+## Support
+
+For issues:
+- Check logs: `docker-compose logs -f llmhub`
+- Review environment variables: `docker-compose exec llmhub env`
+- Verify database connectivity: `docker-compose exec llmhub-db pg_isready`
+- Consult API docs: http://localhost:4000/docs
