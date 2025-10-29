@@ -14,6 +14,73 @@ from src.config.database import Base
 
 
 # ============================================================================
+# LLMProvider Model
+# ============================================================================
+
+class LLMProvider(Base):
+    """LLM provider configurations (Claude, OpenAI, Groq, etc.)"""
+
+    __tablename__ = "llm_providers"
+
+    provider_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider_key = Column(String(50), unique=True, nullable=False, index=True)  # 'claude', 'openai', 'groq'
+    display_name = Column(String(255), nullable=False)  # 'Anthropic Claude', 'OpenAI'
+    description = Column(Text)
+    api_key_env_var = Column(String(100))  # 'ANTHROPIC_API_KEY', etc.
+    api_key = Column(Text)  # Stored API key (optional, can also use environment variable)
+    logo_url = Column(Text)
+    website_url = Column(Text)
+    is_active = Column(Boolean, default=True, index=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
+
+    # Relationships
+    models = relationship("LLMModel", back_populates="provider", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<LLMProvider(provider_key='{self.provider_key}', display_name='{self.display_name}')>"
+
+
+# ============================================================================
+# LLMModel Model
+# ============================================================================
+
+class LLMModel(Base):
+    """LLM models with cost and pricing configuration"""
+
+    __tablename__ = "llm_models"
+
+    model_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    provider_id = Column(UUID(as_uuid=True), ForeignKey("llm_providers.provider_id", ondelete="CASCADE"), nullable=False)
+    model_key = Column(String(255), unique=True, nullable=False, index=True)  # 'claude-3-5-sonnet-20241022'
+    display_name = Column(String(255), nullable=False)  # 'Claude 3.5 Sonnet'
+    description = Column(Text)
+    context_window = Column(String(50))  # '200K', '128K', '32K'
+    cost_per_million_input = Column(DECIMAL(10, 6), nullable=False)  # Provider cost per 1M input tokens
+    cost_per_million_output = Column(DECIMAL(10, 6), nullable=False)  # Provider cost per 1M output tokens
+    price_per_million_input = Column(DECIMAL(10, 6), nullable=False)  # Our price per 1M input tokens
+    price_per_million_output = Column(DECIMAL(10, 6), nullable=False)  # Our price per 1M output tokens
+    is_enabled = Column(Boolean, default=True, index=True)  # Can be used for new requests
+    is_active = Column(Boolean, default=True, index=True)  # Soft delete flag
+    sort_order = Column(Integer, default=0)
+    created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
+
+    # Relationships
+    provider = relationship("LLMProvider", back_populates="models")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_models_provider', provider_id),
+        Index('idx_models_key', model_key),
+    )
+
+    def __repr__(self):
+        return f"<LLMModel(model_key='{self.model_key}', display_name='{self.display_name}')>"
+
+
+# ============================================================================
 # APIClient Model
 # ============================================================================
 

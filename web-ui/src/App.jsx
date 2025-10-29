@@ -3,6 +3,7 @@ import { Link } from 'preact-router/match'
 const navigation = [
   { name: 'Dashboard', path: '/' },
   { name: 'Providers', path: '/providers' },
+  { name: 'Models', path: '/models' },
   { name: 'API Clients', path: '/clients' },
   { name: 'Templates', path: '/templates' },
   { name: 'Billing', path: '/billing' }
@@ -58,6 +59,9 @@ export default function App({ children }) {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p class="text-center text-sm text-gray-500">
             LLMHub v1.0.0 - Multi-Provider LLM Service
+          </p>
+          <p class="text-center text-xs text-gray-400 mt-2">
+            MIT License | Copyright 2025, Ashant Chalasani
           </p>
         </div>
       </footer>

@@ -32,6 +32,67 @@ COMMENT ON COLUMN api_clients.rate_limit IS 'Maximum requests per minute for thi
 COMMENT ON COLUMN api_clients.monthly_budget_usd IS 'Optional monthly spending limit in USD';
 
 -- ============================================================================
+-- TABLE: llm_providers
+-- LLM Provider configurations (Claude, OpenAI, Groq, etc.)
+-- ============================================================================
+
+CREATE TABLE llm_providers (
+  provider_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_key VARCHAR(50) UNIQUE NOT NULL,  -- 'claude', 'openai', 'groq'
+  display_name VARCHAR(255) NOT NULL,  -- 'Anthropic Claude', 'OpenAI', 'Groq'
+  description TEXT,
+  api_key_env_var VARCHAR(100),  -- 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GROQ_API_KEY'
+  logo_url TEXT,
+  website_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_providers_active ON llm_providers(is_active);
+CREATE INDEX idx_providers_key ON llm_providers(provider_key);
+
+COMMENT ON TABLE llm_providers IS 'LLM provider configurations';
+COMMENT ON COLUMN llm_providers.provider_key IS 'Internal key used in code (lowercase, no spaces)';
+COMMENT ON COLUMN llm_providers.api_key_env_var IS 'Environment variable name for API key';
+
+-- ============================================================================
+-- TABLE: llm_models
+-- Available LLM models with cost and pricing configuration
+-- ============================================================================
+
+CREATE TABLE llm_models (
+  model_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_id UUID REFERENCES llm_providers(provider_id) ON DELETE CASCADE,
+  model_key VARCHAR(255) UNIQUE NOT NULL,  -- 'claude-3-5-sonnet-20241022', 'gpt-4-turbo-preview'
+  display_name VARCHAR(255) NOT NULL,  -- 'Claude 3.5 Sonnet', 'GPT-4 Turbo'
+  description TEXT,
+  context_window VARCHAR(50),  -- '200K', '128K', '32K'
+  cost_per_million_input DECIMAL(10,6) NOT NULL,  -- Cost charged by provider (per 1M input tokens)
+  cost_per_million_output DECIMAL(10,6) NOT NULL,  -- Cost charged by provider (per 1M output tokens)
+  price_per_million_input DECIMAL(10,6) NOT NULL,  -- Price we charge to clients (per 1M input tokens)
+  price_per_million_output DECIMAL(10,6) NOT NULL,  -- Price we charge to clients (per 1M output tokens)
+  is_enabled BOOLEAN DEFAULT true,  -- Can be used for new requests
+  is_active BOOLEAN DEFAULT true,  -- Soft delete flag
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_models_provider ON llm_models(provider_id);
+CREATE INDEX idx_models_key ON llm_models(model_key);
+CREATE INDEX idx_models_enabled ON llm_models(is_enabled) WHERE is_enabled = true;
+CREATE INDEX idx_models_active ON llm_models(is_active) WHERE is_active = true;
+
+COMMENT ON TABLE llm_models IS 'LLM models with cost (from provider) and price (to clients) configuration';
+COMMENT ON COLUMN llm_models.cost_per_million_input IS 'Provider cost per 1M input tokens in USD';
+COMMENT ON COLUMN llm_models.cost_per_million_output IS 'Provider cost per 1M output tokens in USD';
+COMMENT ON COLUMN llm_models.price_per_million_input IS 'Our price to clients per 1M input tokens in USD';
+COMMENT ON COLUMN llm_models.price_per_million_output IS 'Our price to clients per 1M output tokens in USD';
+COMMENT ON COLUMN llm_models.is_enabled IS 'Whether this model can be used for new requests';
+
+-- ============================================================================
 -- TABLE: prompt_templates
 -- Reusable prompt templates shared across all clients
 -- ============================================================================
@@ -149,7 +210,7 @@ SELECT
 FROM llm_generation_log
 GROUP BY hour, client_id, provider, endpoint;
 
-COMMENT ON MATERIALIZED VIEW llm_hourly_costs IS 'Hourly aggregated costs and metrics per client/provider/endpoint';
+-- Note: Cannot add COMMENT to TimescaleDB continuous aggregates (not regular materialized views)
 
 -- Add refresh policy (refresh every hour)
 SELECT add_continuous_aggregate_policy('llm_hourly_costs',
@@ -178,7 +239,7 @@ SELECT
 FROM llm_generation_log
 GROUP BY day, client_id, provider, endpoint;
 
-COMMENT ON MATERIALIZED VIEW llm_daily_costs IS 'Daily aggregated costs for billing purposes';
+-- Note: Cannot add COMMENT to TimescaleDB continuous aggregates
 
 -- Add refresh policy (refresh once per day)
 SELECT add_continuous_aggregate_policy('llm_daily_costs',
@@ -204,7 +265,7 @@ SELECT
 FROM llm_generation_log
 GROUP BY month, client_id, provider;
 
-COMMENT ON MATERIALIZED VIEW llm_monthly_billing IS 'Monthly billing summary per client and provider';
+-- Note: Cannot add COMMENT to TimescaleDB continuous aggregates
 
 -- Add refresh policy (refresh weekly)
 SELECT add_continuous_aggregate_policy('llm_monthly_billing',
@@ -407,6 +468,139 @@ Preserve all formatting. Maintain the original tone and intent.',
 
   '{"format": "preserve_original"}',
   true, NULL);
+
+-- ============================================================================
+-- SEED DATA: LLM Providers
+-- ============================================================================
+
+INSERT INTO llm_providers (provider_key, display_name, description, api_key_env_var, sort_order) VALUES
+('claude', 'Anthropic Claude', 'Advanced AI assistant with 200K context window and superior reasoning capabilities', 'ANTHROPIC_API_KEY', 1),
+('openai', 'OpenAI', 'GPT-4 and DALL-E image generation with wide ecosystem support', 'OPENAI_API_KEY', 2),
+('groq', 'Groq', 'Ultra-fast inference with open-source models on custom hardware', 'GROQ_API_KEY', 3);
+
+-- ============================================================================
+-- SEED DATA: LLM Models
+-- Note: Costs are per 1M tokens (converted from per 1K by multiplying by 1000)
+--       Prices include a markup over cost (typically 1.5-2x for margin)
+-- ============================================================================
+
+-- Anthropic Claude Models
+INSERT INTO llm_models (provider_id, model_key, display_name, description, context_window, cost_per_million_input, cost_per_million_output, price_per_million_input, price_per_million_output, is_enabled, sort_order)
+SELECT
+  provider_id,
+  'claude-3-5-sonnet-20241022',
+  'Claude 3.5 Sonnet',
+  'Most intelligent model, best for complex tasks requiring deep reasoning',
+  '200K',
+  3.00,    -- $0.003 per 1K = $3.00 per 1M
+  15.00,   -- $0.015 per 1K = $15.00 per 1M
+  4.50,    -- 1.5x markup
+  22.50,   -- 1.5x markup
+  true,
+  1
+FROM llm_providers WHERE provider_key = 'claude'
+UNION ALL
+SELECT
+  provider_id,
+  'claude-3-opus-20240229',
+  'Claude 3 Opus',
+  'Most powerful model for highly complex tasks requiring maximum intelligence',
+  '200K',
+  15.00,   -- $0.015 per 1K = $15.00 per 1M
+  75.00,   -- $0.075 per 1K = $75.00 per 1M
+  22.50,   -- 1.5x markup
+  112.50,  -- 1.5x markup
+  false,
+  2
+FROM llm_providers WHERE provider_key = 'claude'
+UNION ALL
+SELECT
+  provider_id,
+  'claude-3-haiku-20240307',
+  'Claude 3 Haiku',
+  'Fastest and most cost-effective model for simple tasks and high-volume processing',
+  '200K',
+  0.25,    -- $0.00025 per 1K = $0.25 per 1M
+  1.25,    -- $0.00125 per 1K = $1.25 per 1M
+  0.38,    -- 1.5x markup
+  1.88,    -- 1.5x markup
+  true,
+  3
+FROM llm_providers WHERE provider_key = 'claude';
+
+-- OpenAI Models
+INSERT INTO llm_models (provider_id, model_key, display_name, description, context_window, cost_per_million_input, cost_per_million_output, price_per_million_input, price_per_million_output, is_enabled, sort_order)
+SELECT
+  provider_id,
+  'gpt-4-turbo-preview',
+  'GPT-4 Turbo',
+  'Most capable OpenAI model with improved efficiency and 128K context window',
+  '128K',
+  10.00,   -- $0.01 per 1K = $10.00 per 1M
+  30.00,   -- $0.03 per 1K = $30.00 per 1M
+  15.00,   -- 1.5x markup
+  45.00,   -- 1.5x markup
+  true,
+  1
+FROM llm_providers WHERE provider_key = 'openai'
+UNION ALL
+SELECT
+  provider_id,
+  'gpt-4',
+  'GPT-4',
+  'Original GPT-4 model with excellent reasoning capabilities',
+  '8K',
+  30.00,   -- $0.03 per 1K = $30.00 per 1M
+  60.00,   -- $0.06 per 1K = $60.00 per 1M
+  45.00,   -- 1.5x markup
+  90.00,   -- 1.5x markup
+  false,
+  2
+FROM llm_providers WHERE provider_key = 'openai'
+UNION ALL
+SELECT
+  provider_id,
+  'gpt-3.5-turbo',
+  'GPT-3.5 Turbo',
+  'Fast and cost-effective model suitable for most tasks',
+  '16K',
+  1.50,    -- $0.0015 per 1K = $1.50 per 1M
+  2.00,    -- $0.002 per 1K = $2.00 per 1M
+  2.25,    -- 1.5x markup
+  3.00,    -- 1.5x markup
+  true,
+  3
+FROM llm_providers WHERE provider_key = 'openai';
+
+-- Groq Models
+INSERT INTO llm_models (provider_id, model_key, display_name, description, context_window, cost_per_million_input, cost_per_million_output, price_per_million_input, price_per_million_output, is_enabled, sort_order)
+SELECT
+  provider_id,
+  'mixtral-8x7b-32768',
+  'Mixtral 8x7B',
+  'High quality open-source model with extremely fast inference speed',
+  '32K',
+  0.27,    -- $0.00027 per 1K = $0.27 per 1M
+  0.27,    -- $0.00027 per 1K = $0.27 per 1M
+  0.54,    -- 2x markup (higher margin on cheap models)
+  0.54,    -- 2x markup
+  true,
+  1
+FROM llm_providers WHERE provider_key = 'groq'
+UNION ALL
+SELECT
+  provider_id,
+  'llama2-70b-4096',
+  'LLaMA 2 70B',
+  'Large open-source model with good performance on diverse tasks',
+  '4K',
+  0.07,    -- $0.00007 per 1K = $0.07 per 1M
+  0.07,    -- $0.00007 per 1K = $0.07 per 1M
+  0.14,    -- 2x markup
+  0.14,    -- 2x markup
+  false,
+  2
+FROM llm_providers WHERE provider_key = 'groq';
 
 -- ============================================================================
 -- SEED DATA: Initial API Clients (RE-CLOUD applications)

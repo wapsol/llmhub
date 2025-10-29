@@ -29,6 +29,22 @@
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
   }
 
+  .card-compact {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-2.5;
+  }
+
+  .system-message {
+    @apply bg-blue-50 border-l-4 border-blue-500 p-2 text-sm text-blue-800 rounded;
+  }
+
+  .system-message-error {
+    @apply bg-red-50 border-l-4 border-red-500 p-2 text-sm text-red-800 rounded;
+  }
+
+  .system-message-success {
+    @apply bg-green-50 border-l-4 border-green-500 p-2 text-sm text-green-800 rounded;
+  }
+
   .input {
     @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
   }

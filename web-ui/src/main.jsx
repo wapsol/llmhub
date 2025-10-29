@@ -5,7 +5,8 @@ import './style.css'
 
 // Import views
 import DashboardView from './views/DashboardView'
-import ProvidersView from './views/ProvidersView'
+import ProvidersManagementView from './views/ProvidersManagementView'
+import ModelsView from './views/ModelsView'
 import APIClientsView from './views/APIClientsView'
 import TemplatesView from './views/TemplatesView'
 import BillingView from './views/BillingView'
@@ -16,7 +17,8 @@ function AppWithRouter() {
   const handleRoute = (e) => {
     const routes = {
       '/': 'Dashboard',
-      '/providers': 'Providers & Models',
+      '/providers': 'Provider Management',
+      '/models': 'Models',
       '/clients': 'API Clients',
       '/templates': 'Prompt Templates',
       '/billing': 'Billing & Usage'
@@ -28,7 +30,8 @@ function AppWithRouter() {
     <App>
       <Router onChange={handleRoute}>
         <DashboardView path="/" />
-        <ProvidersView path="/providers" />
+        <ProvidersManagementView path="/providers" />
+        <ModelsView path="/models" />
         <APIClientsView path="/clients" />
         <TemplatesView path="/templates" />
         <BillingView path="/billing" />
