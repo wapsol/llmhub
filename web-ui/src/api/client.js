@@ -43,6 +43,7 @@ export const api = {
 
     // Providers
     getProviders: () => apiClient.get('/admin/providers'),
+    getProvidersRegistry: () => apiClient.get('/admin/providers/registry'), // Dynamic registry endpoint
     getProviderModels: (providerId) => apiClient.get(`/admin/providers/${providerId}/models`),
     updateProviderApiKey: (providerKey, apiKey) => apiClient.put(`/admin/providers/${providerKey}/api-key`, { api_key: apiKey }),
     deleteProviderApiKey: (providerKey) => apiClient.delete(`/admin/providers/${providerKey}/api-key`),

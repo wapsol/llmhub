@@ -73,6 +73,113 @@ async def get_dashboard_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
 # Providers & Models
 # ============================================================================
 
+@router.get("/providers/registry")
+async def get_providers_from_registry(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+    """
+    Get all LLM providers dynamically from the provider registry
+    This endpoint is fully programmatic - new providers appear automatically
+    Shows ALL registered providers, including unconfigured ones
+    Also includes stored API keys from database
+    """
+    try:
+        from src.providers import ProviderRegistry
+        from src.providers.base import ProviderConfig
+
+        # Query database for stored API keys
+        db_providers = db.query(LLMProvider).filter(LLMProvider.is_active == True).all()
+        db_keys_map = {p.provider_key: p.api_key for p in db_providers}
+
+        providers_list = []
+
+        # Get ALL registered providers (not just initialized ones)
+        for provider_name in ProviderRegistry.list_all_providers():
+            # Try to get initialized provider instance
+            provider = ProviderRegistry.get_provider(provider_name)
+
+            # If not initialized, create temporary instance to get metadata
+            if not provider:
+                provider_class = ProviderRegistry._providers.get(provider_name)
+                if provider_class:
+                    temp_config = ProviderConfig(name=provider_name, api_key=None)
+                    provider = provider_class(temp_config)
+
+            if not provider:
+                logger.warning(f"Could not create provider instance for: {provider_name}")
+                continue
+
+            # Get metadata from provider
+            metadata = provider.get_metadata()
+
+            # Check if provider is actually configured and available
+            is_configured = provider.is_available()
+
+            # Get models list (only if configured)
+            models_with_pricing = []
+            if is_configured:
+                models = provider.get_models()
+                pricing_config = provider.config.pricing or {}
+
+                # Build models with pricing info
+                for model_key in models:
+                    # Find pricing for this model (exact match or pattern match)
+                    model_pricing = {"input": 0.0, "output": 0.0}
+
+                    if model_key in pricing_config:
+                        model_pricing = pricing_config[model_key]
+                    else:
+                        # Try pattern matching (e.g., "claude-3-sonnet" matches any sonnet model)
+                        for price_key, price_data in pricing_config.items():
+                            if price_key.lower() in model_key.lower():
+                                model_pricing = price_data
+                                break
+
+                    models_with_pricing.append({
+                        "id": model_key,
+                        "name": model_key.replace("-", " ").replace("_", " ").title(),
+                        "inputCost": model_pricing.get("input", 0.0),
+                        "outputCost": model_pricing.get("output", 0.0),
+                        "enabled": True,
+                        "contextWindow": "varies"  # Could be enhanced per model
+                    })
+
+            # Get stored API key from database (if exists)
+            stored_api_key = db_keys_map.get(provider.provider_name)
+            api_key_masked = None
+            has_stored_key = False
+
+            if stored_api_key:
+                has_stored_key = True
+                # Mask the API key (first 8 chars + ... + last 4 chars)
+                if len(stored_api_key) > 12:
+                    api_key_masked = stored_api_key[:8] + "..." + stored_api_key[-4:]
+                else:
+                    api_key_masked = "***"
+
+            providers_list.append({
+                "provider_key": provider.provider_name,
+                "display_name": metadata.display_name,
+                "description": metadata.description,
+                "logo_url": metadata.logo_url,
+                "website_url": metadata.website_url,
+                "requires_api_key": metadata.requires_api_key,
+                "requires_base_url": metadata.requires_base_url,
+                "configured": is_configured,
+                "models": models_with_pricing,
+                "api_key_masked": api_key_masked,
+                "has_stored_key": has_stored_key
+            })
+
+        logger.info(f"Returned {len(providers_list)} providers from registry (including unconfigured)")
+        return providers_list
+
+    except Exception as e:
+        logger.error(f"Error getting providers from registry: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch providers from registry: {str(e)}"
+        )
+
+
 @router.get("/providers")
 async def get_providers(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
     """

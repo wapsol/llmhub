@@ -5,7 +5,7 @@ import './style.css'
 
 // Import views
 import DashboardView from './views/DashboardView'
-import ProvidersManagementView from './views/ProvidersManagementView'
+import ProvidersView from './views/ProvidersView'
 import ModelsView from './views/ModelsView'
 import APIClientsView from './views/APIClientsView'
 import TemplatesView from './views/TemplatesView'
@@ -30,7 +30,7 @@ function AppWithRouter() {
     <App>
       <Router onChange={handleRoute}>
         <DashboardView path="/" />
-        <ProvidersManagementView path="/providers" />
+        <ProvidersView path="/providers" />
         <ModelsView path="/models" />
         <APIClientsView path="/clients" />
         <TemplatesView path="/templates" />

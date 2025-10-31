@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**LLMHub** is a Python FastAPI-based LLM microservice that provides application-agnostic LLM capabilities with multi-provider support (Claude, OpenAI, Groq) and comprehensive billing tracking using TimescaleDB. The service includes a Vue 3 + Vite web management console for API key management, provider configuration, and usage analytics.
+**LLMHub** is a Python FastAPI-based LLM microservice that provides application-agnostic LLM capabilities with multi-provider support (Claude, OpenAI, Groq, Google Gemini, Mistral AI, Cohere, Ollama) and comprehensive billing tracking using TimescaleDB. The service includes a Vue 3 + Vite web management console for API key management, provider configuration, and usage analytics. Additionally supports embeddings generation via OpenAI and Cohere for RAG and semantic search applications.
 
 **Current Status**: Fully functional with multi-provider integration, cost tracking, prompt templates, and a complete web UI for management. Ready for production deployment with Docker.
 
@@ -104,14 +104,15 @@ curl -X POST http://localhost:4000/api/v1/llm/generate-content \
 3. **Authentication** (`src/services/auth.py`) validates API keys via `X-API-Key` header against `api_clients` table
 4. **Routers** (`src/routers/`) handle endpoint-specific logic and validation
 5. **Services** (`src/services/`) contain business logic:
-   - `llm_core.py`: Multi-provider LLM API integration
+   - `llm_core.py`: Multi-provider text LLM API integration
+   - `embeddings_service.py`: Multi-provider embeddings generation (OpenAI, Cohere)
    - `billing.py`: Cost tracking and logging to TimescaleDB
    - `auth.py`: API key validation
 6. **Database** (TimescaleDB): Stores templates, logs all LLM calls with time-series data, and maintains continuous aggregations for billing
 
 ### Key Design Patterns
 
-**Multi-Provider LLM Abstraction**: `LLMCoreService` provides a unified interface for calling Claude, OpenAI, and Groq. Each provider has a private method (`_call_claude`, `_call_openai`, `_call_groq`) that handles provider-specific API formatting while the public `call_llm` method provides a consistent interface.
+**Multi-Provider LLM Abstraction**: `LLMCoreService` uses a provider registry pattern for scalable provider management. Each provider implements the `BaseProvider` interface with standardized methods (`call()`, `get_models()`, `is_available()`, `get_metadata()`). New providers are auto-discovered and registered, making the system highly extensible. Supported text LLM providers: Claude (Anthropic), OpenAI GPT, Groq, Google Gemini, Mistral AI, Cohere Command, and Ollama (local). Embeddings providers: OpenAI and Cohere via separate `EmbeddingsService`.
 
 **Cost Tracking Architecture**: Every LLM API call is logged to `llm_generation_log` (TimescaleDB hypertable) with:
 - Input/output token counts
@@ -151,13 +152,15 @@ All settings in `src/config/settings.py` use Pydantic Settings:
 
 ### LLM Provider Integration
 
-Located in `src/services/llm_core.py`:
+The system uses a provider registry pattern (`src/providers/`):
 
-- Synchronous clients initialized in `__init__` if API keys present
-- `call_llm()` method routes to appropriate provider
-- Token counting via `tiktoken` (OpenAI's tokenizer)
-- Cost calculation happens in provider-specific methods
-- Returns unified response format: `{content, input_tokens, output_tokens, cost_usd, generation_time_ms}`
+- Each provider implements `BaseProvider` abstract class with standardized interface
+- Providers auto-register on import via `_auto_register_providers()` in `__init__.py`
+- Configuration loaded from `provider_pricing.yaml` for flexible pricing updates
+- `LLMCoreService` (`src/services/llm_core.py`) initializes all providers with their configs
+- `call_llm()` method routes to appropriate provider via registry lookup
+- Returns unified `LLMResponse` format: `{content, input_tokens, output_tokens, cost_usd, provider_metadata}`
+- Web UI dynamically discovers providers via `/api/v1/admin/providers/registry` endpoint
 
 ### Error Handling
 
@@ -187,8 +190,22 @@ llm-service/
 │   │   └── admin.py              # Admin endpoints for web UI
 │   ├── services/
 │   │   ├── llm_core.py           # Multi-provider LLM integration (core logic)
+│   │   ├── embeddings_service.py # Multi-provider embeddings (OpenAI, Cohere)
 │   │   ├── auth.py               # API key validation
 │   │   └── billing.py            # Cost tracking and logging
+│   ├── providers/                # Provider implementations
+│   │   ├── __init__.py           # Provider registry
+│   │   ├── base.py               # BaseProvider abstract class
+│   │   ├── base_embeddings.py   # BaseEmbeddingsProvider abstract class
+│   │   ├── claude_provider.py   # Anthropic Claude
+│   │   ├── openai_provider.py   # OpenAI GPT
+│   │   ├── groq_provider.py     # Groq
+│   │   ├── google_provider.py   # Google Gemini
+│   │   ├── mistral_provider.py  # Mistral AI
+│   │   ├── cohere_provider.py   # Cohere Command
+│   │   ├── ollama_provider.py   # Ollama (local)
+│   │   ├── openai_embeddings_provider.py  # OpenAI embeddings
+│   │   └── cohere_embeddings_provider.py  # Cohere embeddings
 │   └── utils/
 │       └── logger.py             # Structured logging with structlog
 ├── web-ui/                        # Vue 3 + Vite management console
@@ -238,22 +255,36 @@ llm-service/
 
 ### Adding a New LLM Provider
 
-1. Add API key setting in `src/config/settings.py` (e.g., `COHERE_API_KEY`)
-2. Add cost rates per 1K tokens in Settings class
-3. Update `get_cost_per_1k_tokens()` method with new provider logic
-4. Initialize client in `LLMCoreService.__init__()` in `src/services/llm_core.py`
-5. Implement private method (e.g., `_call_cohere()`) following existing patterns
-6. Add provider case in `call_llm()` routing logic
+The provider registry pattern makes adding new providers straightforward:
+
+1. **Create Provider Implementation**: Create `src/providers/{provider}_provider.py`
+   - Implement `BaseProvider` class with required methods: `provider_name`, `is_available()`, `call()`, `get_models()`, `get_metadata()`
+   - Add `register()` function at bottom to auto-register with `ProviderRegistry`
+
+2. **Add Pricing Config**: Update `src/config/provider_pricing.yaml`
+   - Add provider section with model pricing (input/output cost per 1K tokens)
+
+3. **Add Settings**: Update `src/config/settings.py`
+   - Add `{PROVIDER}_API_KEY: Optional[str] = None` to LLM Provider API Keys section
+
+4. **Initialize Provider**: Update `src/services/llm_core.py`
+   - Add provider to `providers_config` dict in `_initialize_providers()` method
+
+5. **Update Schema**: Add provider to `LLMProvider` enum in `src/models/schemas.py`
+
+6. **Install SDK**: Add provider SDK to `requirements.txt`
+
+The provider will automatically appear in the web UI without any UI code changes.
 
 ### Modifying Cost Tracking
 
-Cost rates are defined in `src/config/settings.py` as class attributes. To update pricing:
+Cost rates are now defined in `src/config/provider_pricing.yaml` for easy updates without code changes:
 
-1. Modify the appropriate constant (e.g., `ANTHROPIC_CLAUDE_SONNET_INPUT_COST`)
-2. Update `.env` file if using environment variable overrides
-3. Restart service to pick up new rates
+1. Edit pricing in `provider_pricing.yaml` (costs are per 1K tokens)
+2. Restart service to pick up new rates
+3. Provider's `calculate_cost()` method automatically loads pricing from config
 
-The `get_cost_per_1k_tokens()` method maps model names to cost rates using string matching (e.g., "sonnet" in model name → Sonnet pricing).
+Pricing uses exact model name matching with fallback to substring matching (e.g., "gemini-1.5-pro" matches "gemini-1.5-pro" pricing entry).
 
 ### Database Migrations
 
@@ -269,11 +300,18 @@ This project does NOT currently use Alembic or automated migrations. Schema chan
 Required variables (see `.env.example`):
 
 - `DATABASE_URL`: PostgreSQL connection string for TimescaleDB
-- `OPENAI_API_KEY`: OpenAI API key (optional if not using OpenAI)
-- `ANTHROPIC_API_KEY`: Anthropic API key (optional if not using Claude)
-- `GROQ_API_KEY`: Groq API key (optional if not using Groq)
 
-Cost tracking variables define USD per 1K tokens for each model. These can be overridden via environment variables to update pricing without code changes.
+Optional provider API keys (enable providers by setting their keys):
+
+- `ANTHROPIC_API_KEY`: Anthropic API key (for Claude models)
+- `OPENAI_API_KEY`: OpenAI API key (for GPT models and embeddings)
+- `GROQ_API_KEY`: Groq API key (for fast inference)
+- `GOOGLE_API_KEY`: Google API key (for Gemini models)
+- `MISTRAL_API_KEY`: Mistral AI API key (for Mistral models)
+- `COHERE_API_KEY`: Cohere API key (for Command models and embeddings)
+- `OLLAMA_BASE_URL`: Ollama server URL (default: http://localhost:11434, for local models)
+
+Cost tracking is configured in `src/config/provider_pricing.yaml` (USD per 1K tokens).
 
 ## Security Considerations
 

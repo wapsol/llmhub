@@ -1,45 +1,147 @@
 """
-LLM Core Service
+LLM Core Service - Refactored with Provider Registry
 Multi-provider LLM integration with cost tracking and error handling
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Optional
 import time
-import asyncio
-from anthropic import Anthropic, AsyncAnthropic
-from openai import OpenAI, AsyncOpenAI
-import httpx
-import tiktoken
+import yaml
+from pathlib import Path
 
+from src.providers import ProviderRegistry
+from src.providers.base import ProviderConfig
 from src.config.settings import settings
 from src.utils.logger import logger
 
 
 class LLMCoreService:
-    """Core service for LLM API calls with multi-provider support"""
+    """
+    Core service for LLM API calls with multi-provider support
+
+    Now uses the provider registry pattern for scalable provider management
+    """
 
     def __init__(self):
-        # Initialize LLM clients
-        self.anthropic_client = None
-        self.openai_client = None
-        self.groq_client = None
+        """Initialize all available providers from config"""
+        self._initialize_providers()
 
-        # Initialize clients if API keys are available
-        if settings.ANTHROPIC_API_KEY:
-            self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-            logger.info("Anthropic client initialized")
+    def _initialize_providers(self):
+        """Load provider configurations and initialize"""
+        # Load pricing config
+        pricing_config = self._load_pricing_config()
 
-        if settings.OPENAI_API_KEY:
-            self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
-            logger.info("OpenAI client initialized")
-
-        if settings.GROQ_API_KEY:
-            # Groq uses OpenAI-compatible API
-            self.groq_client = OpenAI(
+        # Configure all providers
+        providers_config = {
+            "claude": ProviderConfig(
+                name="claude",
+                api_key=settings.ANTHROPIC_API_KEY,
+                default_model="claude-3-5-sonnet-20241022",
+                pricing=pricing_config.get("anthropic", {})
+            ),
+            "openai": ProviderConfig(
+                name="openai",
+                api_key=settings.OPENAI_API_KEY,
+                default_model="gpt-4-turbo",
+                pricing=pricing_config.get("openai", {})
+            ),
+            "groq": ProviderConfig(
+                name="groq",
                 api_key=settings.GROQ_API_KEY,
-                base_url="https://api.groq.com/openai/v1"
+                base_url="https://api.groq.com/openai/v1",
+                default_model="mixtral-8x7b-32768",
+                pricing=pricing_config.get("groq", {})
+            ),
+            "google": ProviderConfig(
+                name="google",
+                api_key=settings.GOOGLE_API_KEY,
+                default_model="gemini-1.5-pro",
+                pricing=pricing_config.get("google", {})
+            ),
+            "mistral": ProviderConfig(
+                name="mistral",
+                api_key=settings.MISTRAL_API_KEY,
+                default_model="mistral-large-latest",
+                pricing=pricing_config.get("mistral", {})
+            ),
+            "cohere": ProviderConfig(
+                name="cohere",
+                api_key=settings.COHERE_API_KEY,
+                default_model="command-r-plus",
+                pricing=pricing_config.get("cohere", {})
+            ),
+            "ollama": ProviderConfig(
+                name="ollama",
+                api_key=None,  # No key needed for local Ollama
+                base_url=getattr(settings, 'OLLAMA_BASE_URL', None) or "http://localhost:11434",
+                default_model="llama2",
+                pricing=pricing_config.get("ollama", {})
+            ),
+            "runway": ProviderConfig(
+                name="runway",
+                api_key=settings.RUNWAY_API_KEY,
+                default_model="gen4_turbo",
+                pricing=pricing_config.get("runway", {})
+            ),
+            "pika": ProviderConfig(
+                name="pika",
+                api_key=settings.FAL_KEY,
+                default_model="pika-2.2-720p",
+                pricing=pricing_config.get("pika", {})
+            ),
+            "elevenlabs": ProviderConfig(
+                name="elevenlabs",
+                api_key=settings.ELEVENLABS_API_KEY,
+                default_model="eleven_flash_v2_5",
+                pricing=pricing_config.get("elevenlabs", {})
+            ),
+            "voyageai": ProviderConfig(
+                name="voyageai",
+                api_key=settings.VOYAGE_API_KEY,
+                default_model="voyage-3.5-lite",
+                pricing=pricing_config.get("voyageai", {})
+            ),
+            "assemblyai": ProviderConfig(
+                name="assemblyai",
+                api_key=settings.ASSEMBLYAI_API_KEY,
+                default_model="best",
+                pricing=pricing_config.get("assemblyai", {})
+            ),
+            "deepgram": ProviderConfig(
+                name="deepgram",
+                api_key=settings.DEEPGRAM_API_KEY,
+                default_model="nova-3",
+                pricing=pricing_config.get("deepgram", {})
+            ),
+            "perspective": ProviderConfig(
+                name="perspective",
+                api_key=settings.PERSPECTIVE_API_KEY,
+                default_model="toxicity",
+                pricing=pricing_config.get("perspective", {})
             )
-            logger.info("Groq client initialized")
+        }
+
+        # Initialize each provider
+        for provider_name, config in providers_config.items():
+            ProviderRegistry.initialize_provider(provider_name, config)
+
+        # Log available providers
+        available = ProviderRegistry.get_available_providers()
+        logger.info(f"Initialized providers: {', '.join(available)}")
+
+    def _load_pricing_config(self) -> Dict[str, Any]:
+        """Load pricing from YAML config file"""
+        pricing_file = Path(__file__).parent.parent / "config" / "provider_pricing.yaml"
+
+        if not pricing_file.exists():
+            logger.warning("Pricing config not found, using defaults")
+            return {}
+
+        try:
+            with open(pricing_file) as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            logger.error(f"Failed to load pricing config: {e}")
+            return {}
 
     async def call_llm(
         self,
@@ -48,13 +150,14 @@ class LLMCoreService:
         messages: List[Dict[str, str]],
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Call LLM provider with unified interface
 
         Args:
-            provider: 'claude', 'openai', or 'groq'
+            provider: 'claude', 'openai', 'groq', 'google', 'mistral', or 'ollama'
             model: Model identifier
             messages: List of message dicts [{"role": "user", "content": "..."}]
             max_tokens: Maximum tokens to generate
@@ -74,23 +177,37 @@ class LLMCoreService:
         if not messages or len(messages) == 0:
             raise ValueError("Messages cannot be empty")
 
-        max_tokens = max_tokens or settings.DEFAULT_MAX_TOKENS
-        temperature = temperature if temperature is not None else settings.DEFAULT_TEMPERATURE
+        # Get provider from registry
+        provider_instance = ProviderRegistry.get_provider(provider.lower())
+        if not provider_instance:
+            available = ProviderRegistry.get_available_providers()
+            raise ValueError(
+                f"Provider '{provider}' not available. "
+                f"Available providers: {', '.join(available)}"
+            )
 
-        # Route to appropriate provider
+        # Call provider
         try:
-            if provider.lower() == "claude":
-                result = await self._call_claude(model, messages, max_tokens, temperature, system_prompt)
-            elif provider.lower() == "openai":
-                result = await self._call_openai(model, messages, max_tokens, temperature, system_prompt)
-            elif provider.lower() == "groq":
-                result = await self._call_groq(model, messages, max_tokens, temperature, system_prompt)
-            else:
-                raise ValueError(f"Unsupported provider: {provider}")
+            response = await provider_instance.call(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system_prompt=system_prompt,
+                **kwargs
+            )
 
             # Calculate generation time
             generation_time_ms = int((time.time() - start_time) * 1000)
-            result["generation_time_ms"] = generation_time_ms
+
+            # Convert to dict for backward compatibility
+            result = {
+                "content": response.content,
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+                "cost_usd": response.cost_usd,
+                "generation_time_ms": generation_time_ms
+            }
 
             logger.info(
                 "llm_call_success",
@@ -115,154 +232,16 @@ class LLMCoreService:
             )
             raise
 
-    async def _call_claude(
-        self,
-        model: str,
-        messages: List[Dict[str, str]],
-        max_tokens: int,
-        temperature: float,
-        system_prompt: Optional[str]
-    ) -> Dict[str, Any]:
-        """Call Anthropic Claude API"""
-        if not self.anthropic_client:
-            raise ValueError("Anthropic API key not configured")
+    def get_available_providers(self) -> List[str]:
+        """Get list of available providers"""
+        return ProviderRegistry.get_available_providers()
 
-        try:
-            # Prepare messages for Claude format
-            claude_messages = []
-            for msg in messages:
-                claude_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
-
-            # Call Claude API
-            response = self.anthropic_client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt if system_prompt else "",
-                messages=claude_messages
-            )
-
-            # Extract response
-            content = response.content[0].text if response.content else ""
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-
-            # Calculate cost
-            input_cost = (input_tokens / 1000) * settings.get_cost_per_1k_tokens("claude", model, "input")
-            output_cost = (output_tokens / 1000) * settings.get_cost_per_1k_tokens("claude", model, "output")
-            total_cost = input_cost + output_cost
-
-            return {
-                "content": content,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "cost_usd": round(total_cost, 6)
-            }
-
-        except Exception as e:
-            logger.error(f"Claude API error: {str(e)}")
-            raise
-
-    async def _call_openai(
-        self,
-        model: str,
-        messages: List[Dict[str, str]],
-        max_tokens: int,
-        temperature: float,
-        system_prompt: Optional[str]
-    ) -> Dict[str, Any]:
-        """Call OpenAI API"""
-        if not self.openai_client:
-            raise ValueError("OpenAI API key not configured")
-
-        try:
-            # Prepare messages
-            openai_messages = []
-            if system_prompt:
-                openai_messages.append({"role": "system", "content": system_prompt})
-
-            openai_messages.extend(messages)
-
-            # Call OpenAI API
-            response = self.openai_client.chat.completions.create(
-                model=model,
-                messages=openai_messages,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-
-            # Extract response
-            content = response.choices[0].message.content or ""
-            input_tokens = response.usage.prompt_tokens
-            output_tokens = response.usage.completion_tokens
-
-            # Calculate cost
-            input_cost = (input_tokens / 1000) * settings.get_cost_per_1k_tokens("openai", model, "input")
-            output_cost = (output_tokens / 1000) * settings.get_cost_per_1k_tokens("openai", model, "output")
-            total_cost = input_cost + output_cost
-
-            return {
-                "content": content,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "cost_usd": round(total_cost, 6)
-            }
-
-        except Exception as e:
-            logger.error(f"OpenAI API error: {str(e)}")
-            raise
-
-    async def _call_groq(
-        self,
-        model: str,
-        messages: List[Dict[str, str]],
-        max_tokens: int,
-        temperature: float,
-        system_prompt: Optional[str]
-    ) -> Dict[str, Any]:
-        """Call Groq API (OpenAI-compatible)"""
-        if not self.groq_client:
-            raise ValueError("Groq API key not configured")
-
-        try:
-            # Prepare messages
-            groq_messages = []
-            if system_prompt:
-                groq_messages.append({"role": "system", "content": system_prompt})
-
-            groq_messages.extend(messages)
-
-            # Call Groq API (OpenAI-compatible interface)
-            response = self.groq_client.chat.completions.create(
-                model=model,
-                messages=groq_messages,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-
-            # Extract response
-            content = response.choices[0].message.content or ""
-            input_tokens = response.usage.prompt_tokens
-            output_tokens = response.usage.completion_tokens
-
-            # Calculate cost
-            input_cost = (input_tokens / 1000) * settings.get_cost_per_1k_tokens("groq", model, "input")
-            output_cost = (output_tokens / 1000) * settings.get_cost_per_1k_tokens("groq", model, "output")
-            total_cost = input_cost + output_cost
-
-            return {
-                "content": content,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "cost_usd": round(total_cost, 6)
-            }
-
-        except Exception as e:
-            logger.error(f"Groq API error: {str(e)}")
-            raise
+    def get_provider_models(self, provider: str) -> List[str]:
+        """Get supported models for a provider"""
+        provider_instance = ProviderRegistry.get_provider(provider.lower())
+        if not provider_instance:
+            return []
+        return provider_instance.get_models()
 
     def count_tokens(self, text: str, model: str = "gpt-4") -> int:
         """
@@ -276,6 +255,7 @@ class LLMCoreService:
             Number of tokens
         """
         try:
+            import tiktoken
             encoding = tiktoken.encoding_for_model(model)
             return len(encoding.encode(text))
         except Exception as e:

@@ -18,8 +18,11 @@ from src.config.database import init_database, close_database
 from src.utils.logger import logger
 from src.routers import health
 
-# Import routers
+# Import v1 routers
 from src.routers import content, images, prompts, billing, admin
+
+# Import v2 routers
+from src.routers.v2 import text, document, image, video, audio, moderation, embeddings, data
 
 
 @asynccontextmanager
@@ -199,6 +202,66 @@ app.include_router(
     admin.router,
     prefix="/api/v1/admin",
     tags=["Admin"]
+)
+
+# ============================================================================
+# API v2 Routers - Provider & Model Agnostic
+# ============================================================================
+
+# V2 Text operations (10 endpoints)
+app.include_router(
+    text.router,
+    prefix="/api/v2/text",
+    tags=["v2 - Text Operations"]
+)
+
+# V2 Document operations (6 endpoints)
+app.include_router(
+    document.router,
+    prefix="/api/v2/document",
+    tags=["v2 - Document Operations"]
+)
+
+# V2 Image operations (6 endpoints - stubs)
+app.include_router(
+    image.router,
+    prefix="/api/v2/image",
+    tags=["v2 - Image Operations"]
+)
+
+# V2 Video operations (5 endpoints - requires video providers)
+app.include_router(
+    video.router,
+    prefix="/api/v2/video",
+    tags=["v2 - Video Operations"]
+)
+
+# V2 Audio operations (4 endpoints - requires audio providers)
+app.include_router(
+    audio.router,
+    prefix="/api/v2/audio",
+    tags=["v2 - Audio Operations"]
+)
+
+# V2 Moderation operations (2 endpoints)
+app.include_router(
+    moderation.router,
+    prefix="/api/v2/moderation",
+    tags=["v2 - Moderation"]
+)
+
+# V2 Embeddings (1 endpoint - requires embeddings provider)
+app.include_router(
+    embeddings.router,
+    prefix="/api/v2/embeddings",
+    tags=["v2 - Embeddings"]
+)
+
+# V2 Data operations (2 endpoints - embeddings & reranking)
+app.include_router(
+    data.router,
+    prefix="/api/v2/data",
+    tags=["v2 - Data Operations"]
 )
 
 

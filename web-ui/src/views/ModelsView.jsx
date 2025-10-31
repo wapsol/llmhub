@@ -24,7 +24,7 @@ export default function ModelsView({ provider: urlProvider }) {
     setLoading(true)
     try {
       const [providersData, modelsData] = await Promise.all([
-        api.admin.getProviders(),
+        api.admin.getProvidersRegistry(),
         api.admin.getAllModels(selectedProvider === 'all' ? null : selectedProvider)
       ])
       setProviders(providersData)

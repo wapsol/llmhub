@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    MISTRAL_API_KEY: Optional[str] = None
+    COHERE_API_KEY: Optional[str] = None
+    RUNWAY_API_KEY: Optional[str] = None
+    FAL_KEY: Optional[str] = None  # Fal.ai API key (provides access to Pika Labs models)
+    ELEVENLABS_API_KEY: Optional[str] = None  # ElevenLabs text-to-speech
+    VOYAGE_API_KEY: Optional[str] = None  # VoyageAI embeddings and reranking
+    ASSEMBLYAI_API_KEY: Optional[str] = None  # AssemblyAI speech-to-text and audio intelligence
+    DEEPGRAM_API_KEY: Optional[str] = None  # Deepgram ultra-fast speech-to-text with streaming
+    PERSPECTIVE_API_KEY: Optional[str] = None  # Google Perspective API for content moderation and toxicity detection
+    OLLAMA_BASE_URL: Optional[str] = "http://localhost:11434"
 
     # =========================================================================
     # LLM Provider Configuration

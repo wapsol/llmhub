@@ -1,0 +1,265 @@
+# LLM Provider Pricing Configuration
+# All costs in USD per 1K tokens
+
+anthropic:
+  claude-3-opus:
+    input: 0.015
+    output: 0.075
+  claude-3-sonnet:
+    input: 0.003
+    output: 0.015
+  claude-3-haiku:
+    input: 0.00025
+    output: 0.00125
+
+openai:
+  gpt-4:
+    input: 0.03
+    output: 0.06
+  gpt-4-turbo:
+    input: 0.01
+    output: 0.03
+  gpt-3.5:
+    input: 0.0015
+    output: 0.002
+
+groq:
+  mixtral:
+    input: 0.00027
+    output: 0.00027
+  llama:
+    input: 0.00007
+    output: 0.00007
+
+ollama:
+  # Local inference - free
+  llama2:
+    input: 0.0
+    output: 0.0
+  mistral:
+    input: 0.0
+    output: 0.0
+  codellama:
+    input: 0.0
+    output: 0.0
+  mixtral:
+    input: 0.0
+    output: 0.0
+
+google:
+  # Google Gemini pricing (per 1K tokens)
+  gemini-1.5-pro:
+    input: 0.00125
+    output: 0.005
+  gemini-1.5-flash:
+    input: 0.000075
+    output: 0.0003
+  gemini-1.0-pro:
+    input: 0.0005
+    output: 0.0015
+
+mistral:
+  # Mistral AI pricing (per 1K tokens)
+  mistral-large:
+    input: 0.004
+    output: 0.012
+  mistral-medium:
+    input: 0.00275
+    output: 0.0081
+  mistral-small:
+    input: 0.001
+    output: 0.003
+  codestral:
+    input: 0.001
+    output: 0.003
+
+cohere:
+  # Cohere pricing (per 1K tokens)
+  command-r-plus:
+    input: 0.003
+    output: 0.015
+  command-r:
+    input: 0.0005
+    output: 0.0015
+  command:
+    input: 0.001
+    output: 0.002
+  command-light:
+    input: 0.0003
+    output: 0.0006
+
+# Embeddings Providers (per 1K tokens - single rate)
+cohere_embeddings:
+  embed-english-v3.0: 0.0001
+  embed-multilingual-v3.0: 0.0001
+  embed-english-light-v3.0: 0.0001
+  embed-multilingual-light-v3.0: 0.0001
+
+openai_embeddings:
+  text-embedding-3-small: 0.00002
+  text-embedding-3-large: 0.00013
+  text-embedding-ada-002: 0.0001
+
+# Video Generation Providers (per-second pricing)
+runway:
+  # RunwayML Gen-3 and Gen-4 video models
+  # Pricing in USD per second of generated video
+  # Based on credit system: $0.01 per credit
+  gen4_turbo:
+    per_second: 0.05  # 5 credits/second
+  gen4_aleph:
+    per_second: 0.15  # 15 credits/second
+  gen3_turbo:
+    per_second: 0.05  # 5 credits/second
+  gen3_alpha:
+    per_second: 0.10  # 10 credits/second
+
+pika:
+  # Pika Labs v2.2 video models (via Fal.ai)
+  # Pricing in USD per video (fixed cost, not per-second)
+  # All videos are 5 seconds in Pika v2.2
+  pika-2.2-720p:
+    per_video: 0.20  # $0.20 per 5-second 720p video
+  pika-2.2-1080p:
+    per_video: 0.45  # $0.45 per 5-second 1080p video
+
+# Audio Generation Providers (per-character pricing)
+elevenlabs:
+  # ElevenLabs text-to-speech models
+  # Pricing in USD per character (based on Growing Business tier: $165/1M chars)
+  # Flash models use 0.5 credits/char, standard models use 1 credit/char
+
+  # Flash models (fastest, 75ms latency, 50% cheaper)
+  eleven_flash_v2_5:
+    per_character: 0.00008  # $80 per 1M characters
+  eleven_flash_v2:
+    per_character: 0.00008  # $80 per 1M characters
+
+  # Standard models (higher quality, 1 credit per character)
+  eleven_multilingual_v2:
+    per_character: 0.00016  # $160 per 1M characters (best quality)
+  eleven_turbo_v2_5:
+    per_character: 0.00016  # $160 per 1M characters (low latency + quality)
+  eleven_turbo_v2:
+    per_character: 0.00016  # $160 per 1M characters
+  eleven_multilingual_v1:
+    per_character: 0.00016  # $160 per 1M characters (legacy)
+  eleven_monolingual_v1:
+    per_character: 0.00016  # $160 per 1M characters (legacy, English-only)
+
+# Embedding & Reranking Providers (per 1M tokens)
+voyageai:
+  # VoyageAI embeddings - premium quality for semantic search and RAG
+  # All models support Matryoshka embeddings (flexible dimensions)
+  # Free tier: 200M tokens for most models, 50M for domain-specific
+
+  # General-purpose embeddings
+  voyage-3.5:
+    input: 0.06   # Best cost/performance balance
+    output: 0.0   # Embeddings have no output
+  voyage-3.5-lite:
+    input: 0.02   # Ultra-cheap, 6.5x cheaper than OpenAI v3-large
+    output: 0.0
+  voyage-3-large:
+    input: 0.18   # Highest quality, 1024D default
+    output: 0.0
+
+  # Domain-specific embeddings (specialized training)
+  voyage-code-3:
+    input: 0.18   # Optimized for code search
+    output: 0.0
+  voyage-finance-2:
+    input: 0.12   # Financial documents, reports
+    output: 0.0
+  voyage-law-2:
+    input: 0.12   # Legal documents, case law
+    output: 0.0
+
+  # Reranking models (second-stage refinement)
+  rerank-2.5:
+    input: 0.05   # Best quality reranking
+    output: 0.0
+  rerank-2.5-lite:
+    input: 0.02   # Faster, cheaper reranking
+    output: 0.0
+
+# Speech-to-Text Providers (per hour of audio)
+assemblyai:
+  # AssemblyAI speech-to-text models
+  # Pricing in USD per hour of audio transcribed
+  # Free tier: 185 hours of transcription for pre-recorded audio
+
+  # Model tiers
+  best:
+    input: 0.37   # Universal-2 - state-of-the-art accuracy (24% better proper nouns)
+    output: 0.0   # Transcription has no output tokens
+  nano:
+    input: 0.12   # Budget-friendly option for high-quality transcription
+    output: 0.0
+
+  # Audio Intelligence Add-ons (per hour)
+  # These are automatically calculated when features are enabled
+  speaker_labels: 0.02          # Speaker diarization (who said what)
+  sentiment_analysis: 0.02      # Per-sentence sentiment analysis
+  entity_detection: 0.08        # Named entity recognition
+  auto_chapters: 0.08           # Automatic topic segmentation
+  summarization: 0.03           # AI-powered summarization
+  iab_categories: 0.15          # Topic classification (600+ categories)
+  content_safety_labels: 0.15   # Content moderation
+
+# Deepgram Speech-to-Text (per hour, billed per second)
+deepgram:
+  # Deepgram speech-to-text models
+  # Pricing in USD per hour of audio ($0.0043/min = $0.258/hour)
+  # Unique advantage: Billed per second (not rounded to nearest minute!)
+  # Free tier: $200 credit to get started
+
+  # Pre-recorded transcription models
+  nova-3:
+    input: 0.258     # $0.0043/min - Flagship: sub-200ms, 54% lower WER
+    output: 0.0      # All features included in base price (smart format, diarization, etc.)
+  nova-3-multilingual:
+    input: 0.258     # Real-time code-switching across 10 languages
+    output: 0.0
+  nova-3-medical:
+    input: 0.258     # Healthcare-specialized transcription
+    output: 0.0
+  nova-2:
+    input: 0.258     # Previous generation (still excellent)
+    output: 0.0
+  whisper-large:
+    input: 0.288     # $0.0048/min - OpenAI Whisper via Deepgram (3x faster)
+    output: 0.0
+
+  # Real-time streaming models (for future implementation)
+  nova-3-streaming:
+    input: 0.354     # $0.0059/min - Real-time WebSocket transcription
+    output: 0.0
+
+  # Note: Unlike AssemblyAI, Deepgram includes ALL audio intelligence features
+  # in the base price: smart formatting, diarization, summarization, topics,
+  # sentiment, intents, keyword boosting - no additional per-hour charges!
+
+# Content Moderation Providers (per request)
+perspective:
+  # Google Perspective API - ML-based toxicity detection
+  # Pricing: FREE with default 1 QPS quota
+  # Response time: ~100ms (100x faster than LLM moderation)
+  # Future quota increases may incur fees
+
+  # Analysis types (treated as "models" for compatibility)
+  toxicity:
+    input: 0.0   # Free tier - track usage via pseudo-tokens (text_length / 10)
+    output: 0.0
+  moderation-full:
+    input: 0.0   # Analyzes all production attributes
+    output: 0.0
+  identity-attack:
+    input: 0.0   # Focused on identity-based attacks
+    output: 0.0
+  profanity:
+    input: 0.0   # Focused on profanity detection
+    output: 0.0
+
+  # Note: All attributes (TOXICITY, SEVERE_TOXICITY, IDENTITY_ATTACK, INSULT,
+  # PROFANITY, THREAT) are free. Supports 18 languages with per-sentence analysis.
